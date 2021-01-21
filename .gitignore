@@ -1,3 +1,10 @@
+#vscode setting
+.vscode/
+#logfile
+logs/
+#api-key file
+*.key
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
