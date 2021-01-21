@@ -3,7 +3,7 @@
 #logfile
 logs/
 #api-key file
-*.key
+key.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
