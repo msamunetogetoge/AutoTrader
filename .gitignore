@@ -2,8 +2,7 @@
 .vscode/
 #logfile
 logs/
-#api-key file
-^key
+
 #migration file
 chart/migrations/
 # Byte-compiled / optimized / DLL files
@@ -135,3 +134,4 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+key.py
