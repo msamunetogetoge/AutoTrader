@@ -1,0 +1,55 @@
+{% extends "chart/layout.html" %}
+
+{% block landing-page-title %}
+bitcoin
+{% endblock %}
+
+{% block contents %}
+<div class="container">
+    {% csrf_token %}
+    <div class="row">
+
+        <div class="col-1">
+            <input type="button" class="btn btn-primary" onclick="location.href='{% url 'backtest_b' 'Ema' %}' "
+                value="Ema">
+        </div>
+        <div class="col-1">
+            <input type="button" class="btn btn-primary" onclick="location.href='{% url 'backtest_b' 'DEma' %}' "
+                value="DEma">
+        </div>
+        <div class="col-1">
+            <input type="button" class="btn btn-primary" onclick="location.href='{% url 'backtest_b' 'Sma' %}' "
+                value="Sma">
+        </div>
+        <div class="col-1">
+            <input type="button" class="btn btn-primary" onclick="location.href='{% url 'backtest_b' 'Bb' %}' "
+                value="Bb">
+        </div>
+        <div class="col-1">
+            <input type="button" class="btn btn-primary" onclick="location.href='{% url 'backtest_b' 'Macd' %}' "
+                value="Macd">
+        </div>
+
+        <div class="col-1">
+            <input type="button" class="btn btn-primary" onclick="location.href='{% url 'backtest_b' 'Ichimoku' %}' "
+                value="Ichimoku">
+        </div>
+        <div class="col-1">
+            <input type="button" class="btn btn-primary" onclick="location.href='{% url 'backtest_b' 'Rsi' %}' "
+                value="Rsi">
+        </div>
+    </div>
+
+
+
+
+
+    {% autoescape off %}
+    {{ graph }}　
+    <!-- HTMLコードの文字列が格納されたコンテキスト -->
+    {% endautoescape %}
+
+</div>
+
+
+{% endblock %}

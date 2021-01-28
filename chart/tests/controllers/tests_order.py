@@ -36,8 +36,5 @@ class OrderTests(TestCase):
         api_key = key.api_key
         api_secret = key.api_secret
         b = order.BitFlayer_Order(api_key, api_secret)
-        tax = 0.001
-        size = b.AdjustSize(size=1.0, tax=tax)
+        size = b.AdjustSize(size=1.0)
         print(size)
-        real_size = 1 - tax
-        self.assertEqual(size, real_size)

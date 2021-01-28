@@ -1,8 +1,11 @@
 from chart.models import *
-from chart.controllers import ai
+from chart.controllers import ai, get_data
+import key
 
 from pathlib import Path
 import os
+import pandas as pd
+
 from django_pandas.io import read_frame
 
 import plotly.graph_objects as go
@@ -21,12 +24,18 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 
 class Graph:
-    def __init__(self, duration="h", num_data=300):
+    def __init__(self, duration="h", num_data=300, backtest=False):
+        self.ticker = get_data.Ticker(key.api_key, key.api_secret)
         self.duration = duration
-        self.datas = eval("Candle_1" + duration)
-        self.num_data = num_data
+        self.backtest = backtest
+        if self.backtest is True:
+            self.datas = Candle_BackTest
+            self.num_data = self.datas.objects.all().count()
+        else:
+            self.datas = eval("Candle_1" + duration)
+            self.num_data = num_data
         self.df = self.MakeDf()
-        self.fig = make_subplots(rows=3, shared_xaxes=True,
+        self.fig = make_subplots(rows=3, shared_xaxes=True, row_heights=[0.6, 0.2, 0.2],
                                  specs=[[{"secondary_y": True}],
                                         [{}],
                                         [{}]])
@@ -37,25 +46,32 @@ class Graph:
         Returns:
             [type]: [description] pd.DataFrame
         """
-        df = read_frame(self.datas.objects.all())
+        df = read_frame(self.datas.objects.all().order_by("time"))
         df = df[["time", 'open', 'high', 'low', 'close', 'volume']]
         df = df.set_index("time")
         df = df[-self.num_data:]
         return df
 
-    # def DrawCandleStick(self, apds=None):
-    def DrawCandleStick(self):
+    def DrawCandleStick(self, signalevents="tukau"):
+        """[summary] draw candle stick of self.df and volume, if signalevents is not None, draw it, too.
+
+        Args:
+            signalevents ([type], optional): [description]. Defaults to None. django.db.models like SignalEvents
+
+        Returns:
+            [type]: [description]
+        """
         self.fig.add_trace(go.Candlestick(x=self.df.index,
                                           open=self.df["open"],
                                           high=self.df["high"],
                                           low=self.df["low"],
                                           close=self.df["close"], name="Ticker"), secondary_y=True)
-        self.fig.add_trace(go.Bar(x=self.df.index, y=self.df["volume"], name="Volume", marker_color='skyblue'), secondary_y=False)
+        self.fig.add_trace(go.Bar(x=self.df.index, y=self.df["volume"], name="Volume", marker_color='aqua'), secondary_y=False)
         self.fig.layout.yaxis2.showgrid = False
-        self.fig.layout.yaxis2.range = [min(self.df["low"]), max(self.df["high"])]
+        self.fig.update_yaxes(autorange=True, fixedrange=False)
         self.fig.update_layout(autosize=False,
                                width=1000,
-                               height=600,
+                               height=500,
                                margin=dict(
                                    l=50,
                                    r=50,
@@ -65,7 +81,25 @@ class Graph:
                                ),
                                paper_bgcolor="LightSteelBlue",
                                )
-        self.fig.update_xaxes(rangeslider_thickness=0.05)
+        self.fig.update_xaxes(rangeslider_thickness=0.03)
+        if signalevents is not None:
+            # if signalevents is not None,use REAL execution history
+            signalevents = SignalEvents.objects.order_by("time")
+            index_first = str(self.df.head(1).index.values[0])[:19]
+            signalevents = signalevents.filter(time__gte=index_first)
+            x = list(signalevents.values_list("time", flat=True))
+            for i, t in enumerate(x):
+                x[i] = self.ticker.TruncateDateTime(duration=self.duration, time=t)
+            event = list(signalevents.values_list("side", "price", "size"))
+            self.fig.add_trace(go.Scatter(x=x, y=self.df["close"][x], name="Child orders", mode="markers",
+                                          text=event, textposition="bottom left", textfont=dict(
+                family="sans serif",
+                size=12,
+                color="black"),
+                marker=dict(
+                color='maroon',
+                size=6,)
+            ), secondary_y=True)
 
         plot_fig = plot(self.fig, output_type='div', include_plotlyjs=False)
         return plot_fig
@@ -81,10 +115,6 @@ class Graph:
             t = ai.Technical(candles=self.datas)
             self.df["sma1"] = t.Sma(timeperiod=args[0])[-self.num_data:]
             self.df["sma2"] = t.Sma(timeperiod=args[1])[-self.num_data:]
-            # apdict1 = mpf.make_addplot(self.df["ema1"], color="orange")
-            # apdict2 = mpf.make_addplot(self.df["ema2"], color="red")
-            # apdict = [apdict1, apdict2]
-            # return apdict
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["sma1"], name=f"sma({args[0]})", line=dict(color='darkorange', width=1), visible='legendonly'), secondary_y=True)
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["sma2"], name=f"sma({args[1]})", line=dict(color='tomato', width=1), visible='legendonly'), secondary_y=True)
         else:
@@ -102,12 +132,25 @@ class Graph:
             t = ai.Technical(candles=self.datas)
             self.df["ema1"] = t.Ema(timeperiod=args[0])[-self.num_data:]
             self.df["ema2"] = t.Ema(timeperiod=args[1])[-self.num_data:]
-            # apdict1 = mpf.make_addplot(self.df["ema1"], color="orange")
-            # apdict2 = mpf.make_addplot(self.df["ema2"], color="red")
-            # apdict = [apdict1, apdict2]
-            # return apdict
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["ema1"], name=f"ema({args[0]})", line=dict(color='orange', width=1), visible='legendonly'), secondary_y=True)
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["ema2"], name=f"ema({args[1]})", line=dict(color='red', width=1), visible='legendonly'), secondary_y=True)
+        else:
+            print("args=(period1, period2) where periods are int.")
+            return None
+
+    def AddDEma(self, *args):
+        """[summary] Creating addplot instance, using args[0]=period1, args[1]=period2.
+        Args:
+            args ([type]tuple of int ): [description] (period1, period2)
+        Returns:
+            [type] mpf.make_addplot(): [description] Graph of DEmas, DEma(args[0])=orange, DEma(args[1])=red.
+        """
+        if len(args) == 2:
+            t = ai.Technical(candles=self.datas)
+            self.df["dema1"] = t.DEma(timeperiod=args[0])[-self.num_data:]
+            self.df["dema2"] = t.DEma(timeperiod=args[1])[-self.num_data:]
+            self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["dema1"], name=f"dema({args[0]})", line=dict(color='orange', width=1), visible='legendonly'), secondary_y=True)
+            self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["dema2"], name=f"dema({args[1]})", line=dict(color='red', width=1), visible='legendonly'), secondary_y=True)
         else:
             print("args=(period1, period2) where periods are int.")
             return None
@@ -203,6 +246,7 @@ class Graph:
         """
 
         addEma = self.AddEma(*kwargs["Ema"]["params"])
+        addDEma = self.AddDEma(*kwargs["DEma"]["params"])
         addSma = self.AddSma(*kwargs["Sma"]["params"])
         addBb = self.AddBb(*kwargs["Bb"]["params"])
         addIchimoku = self.AddIchimoku(*kwargs["Ichimoku"]["params"])
@@ -210,4 +254,29 @@ class Graph:
         addRsi = self.AddRsi(*kwargs["Rsi"]["params"])
 
         plot_fig = self.DrawCandleStick()
+        return plot_fig
+
+    def DrawCandleStickWithOptimizedEvents(self, indicator=None):
+        if indicator is not None:
+            results = eval("ai.Optimize(candles=self.datas).Optimize" + indicator + "()")
+            events = results[0]
+            performance = results[1]
+            params = results[2:]
+            event = list(events["order"])
+            add = eval("self.Add" + indicator + f"(*{params})")
+            x = list(BackTestSignalEvents.objects.values_list("time", flat=True))
+            event = list(BackTestSignalEvents.objects.values_list("side", flat=True))
+            self.fig.add_trace(go.Scatter(x=x, y=self.df["close"][x], name=f"Events of {indicator}", mode="markers+text",
+                                          text=event, textposition="bottom left", textfont=dict(
+                family="sans serif",
+                size=18,
+                color="black"),
+                marker=dict(
+                color='maroon',
+                size=10,)
+            ), secondary_y=True)
+            self.fig.update_layout(title=f"Backtest:{indicator},params={params},performance={performance}")
+
+        plot_fig = self.DrawCandleStick(signalevents=None)
+
         return plot_fig

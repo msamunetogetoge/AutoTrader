@@ -42,3 +42,8 @@ class GraphTest(TestCase):
                   "Ichimoku": {"params": (9, 26, 52), "Enable": True}
                   }
         G.CustomDraw(**kwargs)
+
+    def test_DrawCandleStickWithOptimizedEvents(self):
+        createdf.connectandsave(num_data=300)
+        G = drawgraph.Graph()
+        G.DrawCandleStickWithOptimizedEvents(indicator="Ema")

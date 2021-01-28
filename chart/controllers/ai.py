@@ -7,6 +7,8 @@ from collections import OrderedDict
 from chart.models import *
 from chart.controllers import get_data, order
 import math
+import datetime
+import time
 import logging
 
 logger = logging.getLogger(__name__)
@@ -21,7 +23,7 @@ class Technical:
             self.candle_dict:辞書形式のcandle
             self.close:np.[type]:array, [shape] (len(self.candles), )
         """
-        self.candles = list(candles.objects.all())
+        self.candles = list(candles.objects.order_by("time"))
         self.candle_dict = self.Model2Dict()
         self.close = np.array(self.candle_dict["close"]).reshape(-1,)
 
@@ -40,6 +42,48 @@ class Technical:
             for key, value in candle.items():
                 self.candle_dict[key].append(value)
         return self.candle_dict
+
+    def ATR(self, timeperiod=14):
+        """[summary] caluclating ATR lsrge → volatility will be  larger.
+
+        Args:
+            timeperiod (int, optional): [description]. Defaults to 14.
+
+        Returns:
+            [type]: [description] np.array shape=(len(self.close), )
+        """
+        high = np.array(self.candle_dict["high"]).reshape(-1,)
+        low = np.array(self.candle_dict["low"]).reshape(-1,)
+        atr = talib.ATR(high, low, self.close, timeperiod=timeperiod)
+        return atr
+
+    def ADX(self, timeperiod=14):
+        """[summary] caluclating ADX ADX large →trend is strong.
+
+        Args:
+            timeperiod (int, optional): [description]. Defaults to 14.
+
+        Returns:
+            [type]: [description] np.array shape=(len(self.close), )
+        """
+        high = np.array(self.candle_dict["high"]).reshape(-1,)
+        low = np.array(self.candle_dict["low"]).reshape(-1,)
+        adx = talib.ADX(high, low, self.close, timeperiod=timeperiod)
+        DI_m = talib.MINUS_DI(high, low, self.close, timeperiod=timeperiod)
+        DI_p = talib.PLUS_DI(high, low, self.close, timeperiod=timeperiod)
+        return adx, DI_m, DI_p
+
+    def DEma(self, timeperiod=12):
+        """[summary] caluclating DEMA Finf out trend.
+
+        Args:
+            timeperiod (int, optional): [description]. Defaults to 12.
+
+        Returns:
+            [type]: [description] np.array shape=(len(self.close), ) First of timeperiod - 1 elements are nan.
+        """
+        ema = talib.DEMA(self.close, timeperiod=timeperiod)
+        return ema
 
     def Ema(self, timeperiod=12):
         """[summary] caluclating EMA Finf out trend.
@@ -167,79 +211,227 @@ class Technical:
         return tenkan, kijun, senkouA, senkouB, chikou
 
 
-class BackTest(Technical):
-    """[summary]どのタイミングで売買するかを決める為のクラス
+class Recognize:
+    """[summary] From given parameters and i (used like df[i]), recognize buy, sell, or do nothing. This class decide trading algo.
+
+        Args:
+            paremeters (optional): [description]
+
+        Returns:
+            [type]: [description] 'BUY', 'SELL' ,''
+        """
+
+    def RDEma(self, ema1, ema2, close, i=1):
+        """[summary]短期移動平均線が長期移動平均線を下に交差し終値が短期移動平均線を下回っていれば買う。
+
+        Args:
+            ema1 ([type]): [description]
+            ema2 ([type]): [description]
+            close ([type]): [description]
+            thread (float, optional): [description]. Defaults to 0.1.
+            i (int, optional): [description]. Defaults to 1.
+
+        Returns:
+            [type]: [description]
+        """
+        if (ema1[i - 1] < ema2[i - 1] and ema1[i] >= ema2[i] and
+                close[i] > ema1[i]):
+            return "BUY"
+
+        if (ema1[i - 1] > ema2[i - 1] and ema1[i] <= ema2[i] and
+                close[i] < ema1[i]):
+            return "SELL"
+        return ""
+
+    def REma(self, ema1, ema2, close, i=1):
+        """[summary]短期移動平均線が長期移動平均線を下に交差し終値が短期移動平均線を下回っていれば買う。
+
+        Args:
+            ema1 ([type]): [description]
+            ema2 ([type]): [description]
+            close ([type]): [description]
+            thread (float, optional): [description]. Defaults to 0.1.
+            i (int, optional): [description]. Defaults to 1.
+
+        Returns:
+            [type]: [description]
+        """
+        if (ema1[i - 1] < ema2[i - 1] and ema1[i] >= ema2[i] and
+                close[i] > ema1[i]):
+            return "BUY"
+
+        if (ema1[i - 1] > ema2[i - 1] and ema1[i] <= ema2[i] and
+                close[i] < ema1[i]):
+            return "SELL"
+        return ""
+
+    def RSma(self, sma1, sma2, close, i=1):
+        if (sma1[i - 1] < sma2[i - 1] and sma1[i] >= sma2[i] and
+                close[i] > sma1[i]):
+            return "BUY"
+
+        if (sma1[i - 1] > sma2[i - 1] and sma1[i] <= sma2[i] and
+                close[i] < sma1[i]):
+            return "SELL"
+        return ""
+
+    def RBb(self, bbUp, bbDown, close, n, i):
+        if (bbDown[i - 1] > close[i - 1] and bbDown[i] <= close[i] and
+                close[i] > max(close[i - n // 2:i - 1])):
+            return "BUY"
+
+        if (bbUp[i - 1] < close[i - 1] and bbUp[i] >= close[i] and
+                close[i] < min(close[i - n // 2:i - 1])):
+            return "SELL"
+        return ""
+
+    def RIchimoku(self, High, Low, tenkan, kijun, senkouA, senkouB, chikou, i):
+        if (chikou[i - 1] < High[i - 1] and
+            (senkouA[i] < Low[i] or senkouB[i] < Low[i]) and
+                (chikou[i] >= High[i] or tenkan[i] > kijun[i])):
+            return "BUY"
+
+        if (chikou[i - 1] > Low[i - 1] and
+            (senkouA[i] > High[i] or senkouB[i] > High[i]) and
+                (chikou[i] <= Low[i] or tenkan[i] < kijun[i])):
+            return "SELL"
+        return ""
+
+    def RMacd(self, macd, macdsignal, i):
+        if (macd[i] < 0 and macdsignal[i] < 0 and
+                macd[i - 1] < macdsignal[i - 1] and macd[i] >= macdsignal[i]):
+            return "BUY"
+
+        if(macd[i] > 0 and macdsignal[i] > 0 and
+                macd[i - 1] > macdsignal[i - 1] and macd[i] <= macdsignal[i]):
+            return "SELL"
+        return ""
+
+    def RRsi(self, values, i, buyThread=70, sellThread=30):
+        if values[i - 1] == 0 or values[i - 1] == 100:
+            return ""
+        if values[i - 1] < buyThread and values[i] >= buyThread:
+            return "BUY"
+
+        if values[i - 1] > sellThread and values[i] <= sellThread:
+            return "SELL"
+        return ""
+
+
+class BackTest(Recognize, Technical):
+    """[summary]与えられたcandles でBackTest を行うクラス
 
     Args:
-        Technical ([type]class): [description] Technical指標をまとめたクラス。各指標に対して売買の基準を決定する
+        Technical ([type]class): [description] Technical指標をまとめたクラス。
     """
 
     def __init__(self, candles):
         super().__init__(candles=candles)
         self.len_candles = len(self.candles)
 
-    def BackTestEma(self, period1=7, period2=14):
+    def SaveSignalEvents(self, i, side):
+        """[summary]save backtest's signalevents. time=self.candles[i].time, price = self.candles[i].close, side = given
+
+        Args:
+            i ([type]): [description] choose candle paramerter
+            side ([type]): [description] 'BUY' or 'SELL'
+        """
+        signalevents = BackTestSignalEvents()
+        signalevents.time = self.candles[i].time
+        signalevents.price = self.candles[i].close
+        signalevents.side = side
+        signalevents.save()
+
+    def AddEvents(self, events, r, i):
+        """[summary]add signal events to BackTestSignalEvents, and adding events(type=dict , keys=(index, order)).
+
+        Args:
+            events ([type]dict): [description] events={'index':[...], 'order':[...] }
+            r ([type]str): [description] : r in {'BUY', 'SELL', ''}
+            i ([type]int): [description] : i is index of event like self.candles[i]
+        """
+        if ((len(events["order"]) == 0 and r == "BUY") or
+                (len(events["order"]) > 0 and r == "BUY" and events["order"][-1] == "SELL")):
+            events["index"].append(i)
+            events["order"].append("BUY")
+            self.SaveSignalEvents(i, side="BUY")
+
+        elif ((len(events["order"]) == 0 and r == "SELL") or
+                (len(events["order"]) > 0 and r == "SELL" and events["order"][-1] == "BUY")):
+            events["index"].append(i)
+            events["order"].append("SELL")
+            self.SaveSignalEvents(i, side="SELL")
+
+    def BackTestDEma(self, period1=7, period2=14):
+        if len(BackTestSignalEvents.objects.all()) > 0:
+            BackTestSignalEvents.objects.all().delete()
         events = {"index": [], "order": []}
         if self.len_candles <= max(period1, period2):
             return events
+        ema1 = self.DEma(period1)
+        ema2 = self.DEma(period2)
 
+        for i in range(max(period1, period2), self.len_candles):
+            r = self.RDEma(ema1, ema2, self.close, i=i)
+            self.AddEvents(events, r, i)
+
+        return events
+
+    def BackTestEma(self, period1=7, period2=14):
+        if len(BackTestSignalEvents.objects.all()) > 0:
+            BackTestSignalEvents.objects.all().delete()
+        events = {"index": [], "order": []}
+        if self.len_candles <= max(period1, period2):
+            return events
         ema1 = self.Ema(period1)
         ema2 = self.Ema(period2)
 
-        for i in range(1, self.len_candles):
-            if i < max(period1, period2):
-                continue
-            if ema1[i - 1] < ema2[i - 1] and ema1[i] >= ema2[i]:
-                events["index"].append(i)
-                events["order"].append("Buy")
-
-            if ema1[i - 1] > ema2[i - 1] and ema1[i] <= ema2[i]:
-                events["index"].append(i)
-                events["order"].append("Sell")
+        for i in range(max(period1, period2), self.len_candles):
+            r = self.REma(ema1, ema2, self.close, i=i)
+            self.AddEvents(events, r, i)
 
         return events
 
     def BackTestSma(self, period1=26, period2=52):
+        if len(BackTestSignalEvents.objects.all()) > 0:
+            BackTestSignalEvents.objects.all().delete()
         events = {"index": [], "order": []}
         if self.len_candles <= max(period1, period2):
             return events
-
         sma1 = self.Sma(period1)
         sma2 = self.Sma(period2)
 
-        for i in range(1, self.len_candles):
-            if i < max(period1, period2):
-                continue
-            if sma1[i - 1] < sma2[i - 1] and sma1[i] >= sma2[i]:
-                events["index"].append(i)
-                events["order"].append("Buy")
-
-            if sma1[i - 1] > sma2[i - 1] and sma1[i] <= sma2[i]:
-                events["index"].append(i)
-                events["order"].append("Sell")
+        for i in range(max(period1, period2), self.len_candles):
+            r = self.RSma(sma1, sma2, i)
+            self.AddEvents(events, r, i)
 
         return events
 
     def BackTestBb(self, n=14, k=2.0):
+        """[summary] n>=10
+
+        Args:
+            n (int, optional): [description]. Defaults to 14.
+            k (float, optional): [description]. Defaults to 2.0.
+
+        Returns:
+            [type]: [description]
+        """
+        if len(BackTestSignalEvents.objects.all()) > 0:
+            BackTestSignalEvents.objects.all().delete()
         events = {"index": [], "order": []}
         if self.len_candles <= n:
             return events
 
         bbUp, _, bbDown = self.Bbands(n, k)
-        for i in range(1, self.len_candles):
-            if i < n:
-                continue
-
-            if (bbDown[i - 1] > self.close[i - 1] and bbDown[i] <= self.close[i]):
-                events["index"].append(i)
-                events["order"].append("Buy")
-
-            if bbUp[i - 1] < self.close[i - 1] and bbUp[i] >= self.close[i]:
-                events["index"].append(i)
-                events["order"].append("Sell")
+        for i in range(n, self.len_candles):
+            r = self.RBb(bbUp, bbDown, self.close, n, i)
+            self.AddEvents(events, r, i)
         return events
 
     def BackTestIchimoku(self, t=9, k=26, s=52):
+        if len(BackTestSignalEvents.objects.all()) > 0:
+            BackTestSignalEvents.objects.all().delete()
         events = {"index": [], "order": []}
         if self.len_candles <= s:
             return events
@@ -247,63 +439,36 @@ class BackTest(Technical):
         Low = np.array(self.candle_dict["low"]).reshape(-1,)
         tenkan, kijun, senkouA, senkouB, chikou = self.Ichimoku(t, k, s)
 
-        for i in range(1, self.len_candles):
-            if (chikou[i - 1] < High[i - 1] and chikou[i] >= High[i] and
-                senkouA[i] < Low[i] and senkouB[i] < Low[i] and
-                    tenkan[i] > kijun[i]):
-                events["index"].append(i)
-                events["order"].append("Buy")
-
-            if (chikou[i - 1] > Low[i - 1] and chikou[i] <= Low[i] and
-                senkouA[i] > High[i] and senkouB[i] > High[i] and
-                    tenkan[i] < kijun[i]):
-                events["index"].append(i)
-                events["order"].append("Sell")
-
+        for i in range(s, self.len_candles):
+            r = self.RIchimoku(High, Low, tenkan, kijun, senkouA, senkouB, chikou, i)
+            self.AddEvents(events, r, i)
         return events
 
     def BackTestMacd(self, fastperiod=12, slowperiod=26, signalperiod=9):
         events = {"index": [], "order": []}
-        if self.len_candles <= min(fastperiod, slowperiod, signalperiod):
+        if len(BackTestSignalEvents.objects.all()) > 0:
+            BackTestSignalEvents.objects.all().delete()
+        if self.len_candles <= max(fastperiod, slowperiod, signalperiod):
             return events
 
         macd, macdsignal, _ = self.Macd(fastperiod, slowperiod, signalperiod)
 
-        for i in range(1, self.len_candles):
-            if (macd[i] < 0 and
-                macdsignal[i] < 0 and
-                macd[i - 1] < macdsignal[i - 1] and
-                    macd[i] >= macdsignal[i]):
-                events["index"].append(i)
-                events["order"].append("Buy")
-
-            if (macd[i] > 0 and
-                macdsignal[i] > 0 and
-                macd[i - 1] > macdsignal[i - 1] and
-                    macd[i] <= macdsignal[i]):
-                events["index"].append(i)
-                events["order"].append("Sell")
-
+        for i in range(max(fastperiod, slowperiod, signalperiod), self.len_candles):
+            r = self.RMacd(macd, macdsignal, i)
+            self.AddEvents(events, r, i)
         return events
 
     def BackTestRsi(self, period=14, buyThread=70, sellThread=30):
+        if len(BackTestSignalEvents.objects.all()) > 0:
+            BackTestSignalEvents.objects.all().delete()
         events = {"index": [], "order": []}
         if self.len_candles <= period:
             return events
 
         values = self.Rsi(period)
         for i in range(1, self.len_candles):
-            if values[i - 1] == 0 or values[i - 1] == 100:
-                continue
-
-            if values[i - 1] < buyThread and values[i] >= buyThread:
-                events["index"].append(i)
-                events["order"].append("Buy")
-
-            if values[i - 1] > sellThread and values[i] <= sellThread:
-                events["index"].append(i)
-                events["order"].append("Sell")
-
+            r = self.RRsi(values, i, buyThread=70, sellThread=30)
+            self.AddEvents(events, r, i)
         return events
 
 
@@ -333,13 +498,13 @@ class Optimize(BackTest):
         isHolding = False
         for i, oi in enumerate(events["index"]):
             order = events["order"][i]
-            if i == 0 and order == "Sell":
+            if i == 0 and order == "SELL":
                 continue
-            if order == "Buy":
+            if order == "BUY":
                 price = self.close[oi]
                 total -= price * size
                 isHolding = True
-            if order == "Sell":
+            if order == "SELL":
                 price = self.close[oi]
                 total += price * size
                 isHolding = False
@@ -348,33 +513,56 @@ class Optimize(BackTest):
             return beforeSell
         return total
 
+    def OptimizeDEma(self, size=1.0):
+        bestperiod1 = 7
+        bestperiod2 = 14
+        performance = 0.0
+        profit = 0
+        for period1 in range(3, 20):
+            for period2 in range(12, 30):
+                if period1 < period2:
+                    events = self.BackTestDEma(period1=period1, period2=period2)
+                    profit = self.Profit(events=events)
+                if profit > performance:
+                    performance = profit
+                    bestperiod1 = period1
+                    bestperiod2 = period2
+        events = self.BackTestDEma(period1=bestperiod1, period2=bestperiod2)
+        return events, performance, bestperiod1, bestperiod2
+
     def OptimizeEma(self, size=1.0):
         bestperiod1 = 7
         bestperiod2 = 14
         performance = 0.0
+        profit = 0
         for period1 in range(3, 20):
             for period2 in range(10, 30):
-                events = self.BackTestEma(period1=period1, period2=period2)
-                profit = self.Profit(events=events)
+                if period1 < period2:
+                    events = self.BackTestEma(period1=period1, period2=period2)
+                    profit = self.Profit(events=events)
                 if profit > performance:
                     performance = profit
                     bestperiod1 = period1
                     bestperiod2 = period2
-        return performance, bestperiod1, bestperiod2
+        events = self.BackTestEma(period1=bestperiod1, period2=bestperiod2)
+        return events, performance, bestperiod1, bestperiod2
 
     def OptimizeSma(self, size=1.0):
-        bestperiod1 = 26
-        bestperiod2 = 52
+        bestperiod1 = 7
+        bestperiod2 = 14
         performance = 0.0
-        for period1 in range(14, 42):
-            for period2 in range(35, 70):
-                events = self.BackTestSma(period1=period1, period2=period2)
-                profit = self.Profit(events=events)
+        profit = 0
+        for period1 in range(3, 24):
+            for period2 in range(7, 42):
+                if period1 < period2:
+                    events = self.BackTestSma(period1=period1, period2=period2)
+                    profit = self.Profit(events=events)
                 if profit > performance:
                     performance = profit
                     bestperiod1 = period1
                     bestperiod2 = period2
-        return performance, bestperiod1, bestperiod2
+        events = self.BackTestEma(period1=bestperiod1, period2=bestperiod2)
+        return events, performance, bestperiod1, bestperiod2
 
     def OptimizeBb(self, size=1.0):
         bestN = 20
@@ -388,7 +576,8 @@ class Optimize(BackTest):
                     performance = profit
                     bestN = N
                     bestk = k
-        return performance, bestN, bestk
+        events = self.BackTestBb(bestN, bestk)
+        return events, performance, bestN, bestk
 
     def OptimizeMacd(self, size=1.0):
         bestMacdFastPeriod = 12
@@ -404,7 +593,8 @@ class Optimize(BackTest):
                         bestMacdFastPeriod = fastPeriod
                         bestMacdSlowPeriod = slowPeriod
                         bestMacdSignalPeriod = signalPeriod
-        return performance, bestMacdFastPeriod, bestMacdSlowPeriod, bestMacdSignalPeriod
+        events = self.BackTestMacd(bestMacdFastPeriod, bestMacdSlowPeriod, bestMacdSignalPeriod)
+        return events, performance, bestMacdFastPeriod, bestMacdSlowPeriod, bestMacdSignalPeriod
 
     def OptimizeRsi(self, size=1.0):
         bestperiod = 14
@@ -416,7 +606,8 @@ class Optimize(BackTest):
             if profit > performance:
                 performance = profit
                 bestperiod = period
-        return performance, bestperiod, bestBuyThread, bestSellThread
+        events = self.BackTestRsi(period=bestperiod)
+        return events, performance, bestperiod, bestBuyThread, bestSellThread
 
     def OptimizeIchimoku(self, size=1.0):
         performance = 0.0
@@ -427,10 +618,18 @@ class Optimize(BackTest):
         profit = self.Profit(events=events)
         if profit > performance:
             performance = profit
-        return performance, t, k, s
+        events = self.BackTestIchimoku()
+        return events, performance, t, k, s
 
     def OptimizeParams(self, size=1.0):
+        """[summary] optimize parameter of technical indicators above.
 
+        Args:
+            size (float, optional): [description]. Defaults to 1.0.
+
+        Returns:
+            [type]OrderedDict: [description]like ('Bb', {'performance': 13569533.5, 'params': (10, 1.60), 'Enable': True})
+        """
         optimizedparams = OrderedDict()
         Ema = self.OptimizeEma(size=size)
         Sma = self.OptimizeSma(size=size)
@@ -441,147 +640,160 @@ class Optimize(BackTest):
         technical = ["Ema", "Sma", "Bb", "Macd", "Rsi", "Ichimoku"]
         performances = OrderedDict()
         for code in technical:
-            performances[code] = eval(code)[0]
+            performances[code] = eval(code)[1]
         performances = sorted(performances.items(), key=lambda x: x[1], reverse=True)
         for code, _ in performances:
-            optimizedparams[code] = {"performance": eval(code)[0], "params": eval(code)[1:]}
+            optimizedparams[code] = {"performance": eval(code)[1], "params": eval(code)[2:]}
         return optimizedparams
 
-
-class Trade():
-    def __init__(self, api_key, api_secret, product_code="BTC_JPY", duration="h", stoplimitpercent=0.9):
-        self.api_key = api_key
-        self.api_secret = api_secret
-        self.product_code = product_code
-        self.duration = duration
-        self.ticker = get_data.Candle(self.api_key, self.api_secret, code=self.product_code)
-        self.candles = self.ticker.GetAllCandle(duration=self.duration)
-        self.order = order.BitFlayer_Order(self.api_key, self.api_secret)
-        self.stoplimitpercent = stoplimitpercent
-        self.stoplimit = 0.0
-
-    # def is_Create(self):
-    #     ticker = self.ticker.ticker
-
-    #     time_now = datetime.datetime.now()
-    #     time_now = self.ticker.TruncateDateTime(time=time_now)
-    #     b = self.ticker.IsExistCandle(duration=self.duration, time=time_now)
-    #     if datetime_now != last_date:
-    #         return True
-    #     else:
-    #         return False
-
-    # def IsOrder(self, duration):
-    #     Optimize(candles=Candle_1s)→最後のindex が今→true
-
-    def Trade(self, backtest=True):
-        """[summary]1.Prepare constants and optimizedparameters has information of useful or not.
-         2. Calculate Techniques.
-         3. For each truncate-time, calculate buy or sell, and count points.
+    def OptimizeParamsWithEvent(self, size=1.0):
+        """[summary] optimize parameter of technical indicators above.
 
         Args:
-            candles ([type]django.db.models): [description] models.Candle_1s etc...
+            size (float, optional): [description]. Defaults to 1.0.
+
+        Returns:
+            [type]OrderedDict: [description]like ('Ema', {'events': {'index': [56, 79], 'order': ['SELL', 'BUY']},
+             'performance': 969832.0, 'params': (5, 26)})
         """
-        availavlecurrency = self.order.AvailableBalance()["JPY"]
-        availavlesize = self.order.AvailableBalance()[self.product_code]
+        optimizedparamswithevents = OrderedDict()
+        Ema = self.OptimizeEma(size=size)
+        Sma = self.OptimizeSma(size=size)
+        Bb = self.OptimizeBb(size=size)
+        Macd = self.OptimizeMacd(size=size)
+        Rsi = self.OptimizeRsi(size=size)
+        Ichimoku = self.OptimizeIchimoku()
+        technical = ["Ema", "Sma", "Bb", "Macd", "Rsi", "Ichimoku"]
+        performances = OrderedDict()
+        for code in technical:
+            performances[code] = eval(code)[1]
+        performances = sorted(performances.items(), key=lambda x: x[1], reverse=True)
+        for code, _ in performances:
+            optimizedparamswithevents[code] = {"events": eval(code)[0], "performance": eval(code)[1], "params": eval(code)[2:]}
+        return optimizedparamswithevents
 
-        t = Technical(candles=self.candles)
-        optimizedparams = Optimize(candles=self.candles).OptimizeParams()
-        ks = optimizedparams.keys()
-        for code in list(ks):
-            if optimizedparams[code]["performance"] > 0:
-                optimizedparams[code]["Enable"] = True
+
+class Trade(Optimize):
+    def __init__(self, api_key, api_secret, backtest=True, product_code="BTC_JPY", duration="h", stoplimitpercent=0.9):
+        self.api_key = api_key
+        self.api_secret = api_secret
+        self.backtest = backtest
+        self.product_code = product_code
+        self.duration = duration
+        self.candles = get_data.Candle(self.api_key, self.api_secret, code=self.product_code).GetAllCandle(duration=self.duration)
+        super().__init__(candles=self.candles)
+        self.b = get_data.Balance(self.api_key, self.api_secret, code=self.product_code)
+        self.order = order.BitFlayer_Order(self.api_key, self.api_secret)
+        self.availavlecurrency = self.order.AvailableBalance()["JPY"]
+        self.availavlesize = self.order.AvailableBalance()[self.product_code]
+        self.stoplimitpercent = stoplimitpercent
+        self.stoplimit = 0.0
+        self.b.GetExecutions()
+
+    def GetClose(self):
+        self.candles = get_data.Candle(self.api_key, self.api_secret, code=self.product_code).GetAllCandle(duration=self.duration)
+        super().__init__(candles=self.candles)
+        signalevent = SignalEvents.objects.last()
+        signaltime = signalevent.time
+        self.now_position = signalevent.side
+        self.price = signalevent.price
+        candles = self.candle_dict
+        self.latest_close = candles["close"][-1]
+        self.before_close = candles["close"][-2]
+        print(f"now_position={signaltime, self.now_position, self.price},latest_close ={self.latest_close}, before_close={self.before_close} ")
+
+    def SendOrders(self, SELLSIGNAL, BUYSIGNAL):
+        """[summary]現在の足の終値が前の足の終値を下回って、現在の保有ポジションの総損益が損失になったときは成り行き注文でドテン売りする、または保有しているポジションがないときは成り行き注文で売る。
+            買いポジションを取るときはこの逆。
+        """
+        logging.info(f"available curenncy={self.availavlecurrency}, available BTC={self.availavlesize}")
+        self.GetClose()
+        self.stoplimit = self.price * self.stoplimitpercent
+        # SELL SIGNAL
+        if (SELLSIGNAL or self.latest_close < self.stoplimit) and self.now_position == "BUY":
+            performance = self.price - self.latest_close
+            if self.backtest:
+                print(f"BACKTEST SELL Trade Occur!, potision={self.price}, close={self.latest_close}, performance ={performance} ")
             else:
-                optimizedparams[code]["Enable"] = False
+                sell_code = self.order.SELL(size=self.availavlesize)
 
-        length = len(list(self.candles.objects.all()))
-
-        Emaperiod1 = optimizedparams["Ema"]["params"][0]
-        Emaperiod2 = optimizedparams["Ema"]["params"][1]
-        Ema1 = t.Ema(Emaperiod1)
-        Ema2 = t.Ema(Emaperiod2)
-        Smaperiod1 = optimizedparams["Sma"]["params"][0]
-        Smaperiod2 = optimizedparams["Sma"]["params"][1]
-        Sma1 = t.Sma(Smaperiod1)
-        Sma2 = t.Sma(Smaperiod2)
-        BbN = optimizedparams["Bb"]["params"][0]
-        Bbk = optimizedparams["Bb"]["params"][1]
-        bbUp, _, bbDown = t.Bbands(BbN, Bbk)
-        Ichimokut = optimizedparams["Ichimoku"]["params"][0]
-        Ichimokuk = optimizedparams["Ichimoku"]["params"][1]
-        Ichimokus = optimizedparams["Ichimoku"]["params"][2]
-        High = np.array(t.candle_dict["high"]).reshape(-1,)
-        Low = np.array(t.candle_dict["low"]).reshape(-1,)
-        tenkan, kijun, senkouA, senkouB, chikou = t.Ichimoku(Ichimokut, Ichimokuk, Ichimokus)
-        Macdfastperiod = optimizedparams["Macd"]["params"][0]
-        Macdslowperiod = optimizedparams["Macd"]["params"][1]
-        Macdsignalperiod = optimizedparams["Macd"]["params"][2]
-        macd, macdsignal, _ = t.Macd(Macdfastperiod, Macdslowperiod, Macdsignalperiod)
-        Rsiperiod = optimizedparams["Rsi"]["params"][0]
-        Rsibuythread = optimizedparams["Rsi"]["params"][1]
-        Rsisellthread = optimizedparams["Rsi"]["params"][2]
-        Rsivalues = t.Rsi(Rsiperiod)
-
-        print(optimizedparams)
-
-        for i in range(1, length):
-            buyPoint = 0
-            sellPoint = 0
-            if optimizedparams["Ema"]["Enable"] and min(Emaperiod1, Emaperiod2) <= i:
-                if Ema1[i - 1] < Ema2[i - 1] and Ema1[i] >= Ema2[i]:
-                    buyPoint += 1
-
-                if Ema1[i - 1] > Ema2[i - 1] and Ema1[i] <= Ema2[i]:
-                    sellPoint += 1
-            if optimizedparams["Sma"]["Enable"] and min(Smaperiod1, Smaperiod2) <= i:
-                if Sma1[i - 1] < Sma2[i - 1] and Sma1[i] >= Sma2[i]:
-                    buyPoint += 1
-
-                if Sma1[i - 1] > Sma2[i - 1] and Sma1[i] <= Sma2[i]:
-                    sellPoint += 1
-            if optimizedparams["Bb"]["Enable"] and BbN <= i:
-                if bbDown[i - 1] > t.close[i - 1] and bbDown[i] <= t.close[i]:
-                    buyPoint += 1
-                if bbUp[i - 1] < t.close[i - 1] and bbUp[i] >= t.close[i]:
-                    sellPoint += 1
-            if optimizedparams["Macd"]["Enable"]:
-                if macd[i] < 0 and macdsignal[i] < 0 and macd[i - 1] < macdsignal[i - 1] and macd[i] >= macdsignal[i]:
-                    buyPoint += 1
-                if macd[i] > 0 and macdsignal[i] > 0 and macd[i - 1] > macdsignal[i - 1] and macd[i] <= macdsignal[i]:
-                    sellPoint += 1
-            if optimizedparams["Ichimoku"]["Enable"]:
-                if (chikou[i - 1] < High[i - 1] and chikou[i] >= High[i] and
-                    senkouA[i] < Low[i] and senkouB[i] < Low[i] and
-                        tenkan[i] > kijun[i]):
-                    buyPoint += 1
-                if (chikou[i - 1] > Low[i - 1] and chikou[i] <= Low[i] and
-                    senkouA[i] > High[i] and senkouB[i] > High[i] and
-                        tenkan[i] < kijun[i]):
-                    sellPoint += 1
-            if optimizedparams["Rsi"]["Enable"] and Rsivalues[i - 1] != 0 and Rsivalues[i - 1] != 100:
-                if Rsivalues[i - 1] < Rsibuythread and Rsivalues[i] >= Rsibuythread:
-                    buyPoint += 1
-                if Rsivalues[i - 1] > Rsisellthread and Rsivalues[i] <= Rsisellthread:
-                    sellPoint += 1
-
-            if buyPoint > 0:
-                if backtest:
-                    print("Buy Trade Occur!")
+                if sell_code is None:
+                    logging.error("Cant SELL")
                 else:
-                    return None
-                    buy_code = self.order.Buy(currency=availavlecurrency)
-                    self.stoplimit = t.close[-1] * self.stoplimitpercent
-                    if buy_code is None:
-                        logging.error("Cant Buy")
-
-            if sellPoint > 0:
-                if backtest:
-                    print("Sell Trade Occur!")
-                else:
-                    sell_code = self.order.Sell(size=availavlesize)
                     self.stoplimit = 0
-                    if sell_code is None:
-                        logging.error("Cant Sell")
+                    logger.info(f"{datetime.datetime.now()}:SELL Trade Occured ID ={sell_code['child_order_acceptance_id']}")
+        # BUY SIGNAL
+        if BUYSIGNAL and self.now_position == "SELL":
+            if self.backtest:
+                print(f"BACKTEST BUY Trade Occur!, potision={self.price}, close={self.latest_close}")
 
-            if not(buyPoint > 0 or sellPoint > 0 or self.stoplimit > t.close[i]):
-                print("No Trade")
+            else:
+                buy_code = self.order.BUY(currency=self.availavlecurrency)
+
+                if buy_code is None:
+                    logging.error("Cant BUY")
+                else:
+                    self.stoplimit = self.close[-1] * self.stoplimitpercent
+                    logger.info(f"{datetime.datetime.now()}:BUY Trade Occured ID ={buy_code['child_order_acceptance_id']},size={self.availavlesize}")
+        else:
+            print(f"{datetime.datetime.now()} No Trade")
+            logging.info("No Trade Occured")
+
+    def FollowAlgo(self):
+        """[summary]現在の足の終値が前の足の終値を下回って、現在の保有ポジションの総損益が損失になったときは成り行き注文でドテン売りする、または保有しているポジションがないときは成り行き注文で売る。
+            買いポジションを取るときはこの逆。
+        """
+        self.GetClose()
+        sellsignal = min(self.latest_close, self.price) < self.before_close
+        buysignal = max(self.latest_close, self.price) > self.before_close
+        return sellsignal, buysignal
+
+    def EmaAlgo(self):
+        """[summary] golden closs + close > ema1 なら買う。dead closs + close<ema1 なら売る。
+        """
+        self.GetClose()
+        Emaperiod1 = 3
+        Emaperiod2 = 10
+        len_candles = self.len_candles - 1
+        Ema1 = self.Ema(Emaperiod1)
+        Ema2 = self.Ema(Emaperiod2)
+
+        sellsignal = self.REma(Ema1, Ema2, self.close, i=len_candles) == "SELL" or min(self.latest_close, self.price) < self.before_close
+        buysignal = self.REma(Ema1, Ema2, self.close, i=len_candles) == "BUY"
+        return sellsignal, buysignal
+
+    def DEmaAlgo(self):
+        """[summary] golden closs + close > ema1 なら買う。dead closs + close<ema1 なら売る。
+        """
+        self.GetClose()
+        Emaperiod1 = 3
+        Emaperiod2 = 10
+        len_candles = self.len_candles - 1
+        Ema1 = self.DEma(Emaperiod1)
+        Ema2 = self.DEma(Emaperiod2)
+
+        sellsignal = self.RDEma(Ema1, Ema2, self.close, i=len_candles) == "SELL" or min(self.latest_close, self.price) < self.before_close
+        buysignal = self.RDEma(Ema1, Ema2, self.close, i=len_candles) == "BUY"
+        return sellsignal, buysignal
+
+    def SmaAlgo(self):
+        """[summary] golden closs + close > ema1 なら買う。dead closs + close<ema1 なら売る。
+        """
+        self.GetClose()
+        Emaperiod1 = 3
+        Emaperiod2 = 10
+        len_candles = self.len_candles - 1
+        Ema1 = self.Sma(Emaperiod1)
+        Ema2 = self.Sma(Emaperiod2)
+
+        sellsignal = self.RSma(Ema1, Ema2, self.close, i=len_candles) == "SELL" or min(self.latest_close, self.price) < self.before_close
+        buysignal = self.RSma(Ema1, Ema2, self.close, i=len_candles) == "BUY"
+        return sellsignal, buysignal
+
+    def Trade(self, algo, time_sleep=60):
+        SELLSIGNAL, BUYSIGNAL = eval("self." + algo + "Algo")()
+        self.SendOrders(SELLSIGNAL=SELLSIGNAL, BUYSIGNAL=BUYSIGNAL)
+        stime = time_sleep * 60
+        print("Sleepng...")
+        time.sleep(stime)
+        print("Wake Up")

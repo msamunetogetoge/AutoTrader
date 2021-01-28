@@ -1,0 +1,90 @@
+{% extends "chart/layout.html" %}
+
+{% block landing-page-title %}
+bitcoin
+{% endblock %}
+
+
+{% block contents %}
+<div class="container">
+
+
+    <div class="col-6">
+        {% autoescape off %}
+        {{ graph }}　
+        <!-- HTMLコードの文字列が格納されたコンテキスト -->
+        {% endautoescape %}
+    </div>
+    <div class="row">
+        <div class="col-2">
+            <table class="table table-dark">
+                <caption>Available Balances</caption>
+                <thead>
+
+                    <tr class="text-center">
+                        <th>JPY</th>
+                        <th>Assets</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="text-center">{{ jpy }}</td>
+                        <td class="text-center">{{ btc}}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="col-5">
+            <form action="{% url 'trade'%}" method="POST">
+                {% csrf_token %}
+                数量<input name="num_order" type="text">
+                <button type="submit" class="btn btn-primary" name="order" value="SELL">売り</button>
+                <button type="submit" class="btn btn-primary" name="order" value="BUY">買い</button>
+            </form>
+        </div>
+        {% if id is not None %}
+        <div class="col-5">
+            <table class="table table-dark">
+                <caption>Order Accepted!! id={{ id }}</caption>
+                <thead>
+                    <tr>
+                        <th class="text-center">Date(UTC)</th>
+                        <th>Side</th>
+                        <th>Price</th>
+                        <th>Size</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="text-center">{{ signalevent.time }}</td>
+                        <td id="side">{{ signalevent.side }}</td>
+                        <td>{{ signalevent.price }}&yen;</td>
+                        <td>{{ signalevent.size }}</td>
+                    </tr>
+
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+
+
+    </div>
+
+
+
+
+</div>
+
+
+
+
+
+
+
+
+
+
+</div>
+
+
+{% endblock %}

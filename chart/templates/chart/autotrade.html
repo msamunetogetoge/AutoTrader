@@ -1,0 +1,97 @@
+{% extends "chart/layout.html" %}
+
+{% block landing-page-title %}
+bitcoin
+{% endblock %}
+
+
+{% block contents %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col align-self-center">
+            {% if usealgo %}
+            現在のアルゴリズム<br>
+            {{ usealgo }}<br>
+            <form action="{% url 'autotrade' %}" method="POST">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary" name="stop_algo" value="OFF">Stop or Change Algo</button>
+            </form>
+
+            {% else %}
+            アルゴリズムの説明と選択ボタン
+            <form action="{% url 'autotrade' %}" method="POST" id="sendalgo">
+                {% csrf_token %}
+                <select class="custom-select" id="select_algo" name="select_algo" style="font-size:12px;border:1px;">
+                    <option selected value="none">Select Algo</option>
+                    {% for algolist in algolists %}
+                    <option value="{{ algolist.algo }}" name="selectalgo">{{algolist}}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" id="submitbtn" class="btn btn-primary" disabled>選択</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    <div class="row justify-content-center">
+        <div class="col align-self-center">
+            <table class="table table-dark">
+                <caption>最近の取引履歴</caption>
+                <colgroup>
+                    <col span="1">
+                    <col span="1" class="side">
+                    <col span="1">
+                    <col span="1">
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th class="text-center">Date(UTC)</th>
+                        <th>Side</th>
+                        <th>Price</th>
+                        <th>Size</th>
+                    </tr>
+                </thead>
+                <tbody>
+
+                    {% for signalevent in signalevents %}
+                    <tr>
+                        <td class="text-center">{{ signalevent.time }}</td>
+                        <td id="side">{{ signalevent.side }}</td>
+                        <td>{{ signalevent.price }}&yen;</td>
+                        <td>{{ signalevent.size }}</td>
+                    </tr>
+                    {% empty %}
+                    No Trade History
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    window.onload = function () {
+        var sides = document.querySelectorAll("#side")
+        for (let i = 0; i < sides.length; i++) {
+
+            if (sides[i].innerText == "SELL") {
+                sides[i].style.color = "yellow"
+            } if (sides[i].innerText == "BUY") {
+                sides[i].style.color = "red"
+            }
+        }
+    }
+    document.addEventListener('DOMContentLoaded', function () {
+        var algo = document.querySelector('#select_algo');
+        const submit = document.querySelector('#submitbtn');
+        algo.onchange = function () {
+            if (algo.value == "none") {
+                submit.disabled = true;
+            } else {
+                submit.disabled = false;
+            }
+        };
+    });
+
+</script>
+{% endblock %}

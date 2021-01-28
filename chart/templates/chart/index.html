@@ -10,14 +10,16 @@ bitcoin
     <form action="{% url 'index'%}" method="post" name="params" id="paramsform">
         {% csrf_token %}
         <div class="row">
+
             <div class="col-1">
-                <div class="input-group mb-3">
-                    {{Sma.as_p}}
-                </div>
+
+                {{Sma.as_p}}
 
             </div>
             <div class="col-1">
-
+                {{DEma.as_p}}
+            </div>
+            <div class="col-1">
                 {{Ema.as_p}}
             </div>
             <div class="col-1">
@@ -32,6 +34,7 @@ bitcoin
             <div class="col-2">
                 {{Ichimoku.as_p}}
             </div>
+
 
             <div class="col-1">
                 <button type="submit" formaction="{% url 'index_d' 's' %}" form="paramsform"

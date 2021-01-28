@@ -29,8 +29,7 @@ class BitFlayer_Order():
         """
         b = get_data.Balance(self.api_key, self.api_secret)
         balance_code = self.product_code.split("_")[0]
-        codes = ["JPY", balance_code]
-        balance = b.GetBalance(codes=codes)
+        balance = b.GetBalance()
 
         available_JPY = balance["JPY"]["available"]
         available_CRP = balance[balance_code]["available"]
@@ -38,7 +37,7 @@ class BitFlayer_Order():
         d = {"JPY": available_JPY, self.product_code: available_CRP}
         return d
 
-    def AdjustSize(self, size=0.00000001, tax=0.001):
+    def AdjustSize(self, size=0.00000001):
         """[summary] 手数料込みで取り扱えるsizeを計算する。
 
         Args:
@@ -48,13 +47,14 @@ class BitFlayer_Order():
         Returns:
             [type]float : [description] 1 satoshi 刻み
         """
+        tax = self.api.gettradingcommission(product_code=self.product_code)["commission_rate"]
         useable = 1.0 - tax
         size = size * useable
         size = int(size * 100000000) / 100000000
         return size
 
-    def Buy(self, currency, use_parcent=0.9, code="BTC_JPY"):
-        """[summary] 買いたい学を円で指定して、bitflyer から成り行き注文を行う。
+    def BUY(self, currency, use_parcent=0.9, code="BTC_JPY"):
+        """[summary] 買いたい額を円で指定して、bitflyer から成り行き注文を行う。
         売買が成立するとIDを返し、失敗するとNone を返す。
 
         Args:
@@ -80,11 +80,11 @@ class BitFlayer_Order():
         if "child_order_acceptance_id" in buy_code.keys():
             return buy_code
         else:
-            logger.error(Exception("Cant Buy"))
-            print("Cant Buy")
+            logger.error(Exception("Cant BUY"))
+            print("Cant BUY")
             return None
 
-    def Sell(self, code="BTC_JPY", size=0.00000001):
+    def SELL(self, code="BTC_JPY", size=0.00000001):
         """[summary] 売りたい量のbitcoinをbitcoinの枚数で指定して、bitflyer から成り行き注文を行う。
         売買が成立するとIDを返し、失敗するとNone を返す。
 
@@ -107,6 +107,6 @@ class BitFlayer_Order():
         if "child_order_acceptance_id" in sell_code.keys():
             return sell_code
         else:
-            logger.error(Exception("Cant Sell"))
-            print("Cant Sell")
+            logger.error(Exception("Cant SELL"))
+            print("Cant SELL")
             return None

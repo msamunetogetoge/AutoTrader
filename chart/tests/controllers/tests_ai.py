@@ -11,6 +11,8 @@ import datetime
 import time
 from collections import OrderedDict
 
+import matplotlib.pyplot as plt
+
 # Create your tests here.
 
 
@@ -32,6 +34,41 @@ class TechnicalTests(TestCase):
                 "volume"]
         t_keys = list(t.candle_dict.keys())
         self.assertEqual(keys, t_keys)
+
+    def test_ATR(self):
+        createdf.connectandsave()
+        t = ai.Technical(eval("Candle_1h"))
+        atr = t.ATR()
+        element_num = len(t.candle_dict["close"])
+        times = np.array(t.candle_dict["time"]).reshape(-1,)
+        fig = plt.figure()
+        ax1 = fig.add_subplot(2, 1, 1)
+        ax2 = fig.add_subplot(2, 1, 2)
+        ax1.plot(times, atr, label="ATR")
+        ax2.plot(times, t.close, label="CLOSE")
+        ax1.legend()
+        ax2.legend()
+        plt.show()
+        self.assertEqual(atr.shape, (element_num,))
+
+    def test_ADX(self):
+        createdf.connectandsave()
+        t = ai.Technical(eval("Candle_1h"))
+        adx, di_m, di_p = t.ADX()
+        element_num = len(t.candle_dict["close"])
+        times = np.array(t.candle_dict["time"]).reshape(-1,)
+        fig = plt.figure()
+        ax1 = fig.add_subplot(2, 1, 1)
+        ax2 = fig.add_subplot(2, 1, 2)
+        ax1.plot(times, t.close, label="CLOSE")
+        ax2.plot(times, adx, label="ADX")
+        ax2.plot(times, di_m, label="DI-")
+        ax2.plot(times, di_p, label="DI+")
+
+        ax1.legend()
+        ax2.legend()
+        plt.show()
+        self.assertEqual(adx.shape, (element_num,))
 
     def test_EMA(self):
         """[summary]calculate EMA from models.Candle_1h timeperiod=10
@@ -155,15 +192,66 @@ class BackTestTests(TestCase):
         length = len(b.candles)
         self.assertIs(b.len_candles, length)
 
-    def test_BackTestEMA(self):
-        createdf.connectandsave()
-        orders = ["", "Sell", "Buy"]
+    def test_AddEvents(self):
+        """[summary]Test AddEvents function. It saves events like buy, sell, buy,... and sell, buy, sell, ... .
+        """
+        createdf.connectandsave(num_data=100)
         b = ai.BackTest(eval("Candle_1h"))
-        period1 = 7
-        period2 = 14
-        events = b.BackTestEma(period1, period2)
-        length = len(events["index"])
+        self.assertEqual(BackTestSignalEvents.objects.exists(), False)
+        # testing buy, sell,buy patern
+        event1 = {"index": [], "order": []}
+        r1 = "BUY"
+        i1 = 10
+        b.AddEvents(events=event1, r=r1, i=i1)
+        signalevent1 = BackTestSignalEvents.objects.last()
+        self.assertEqual(signalevent1.side, "BUY")
+        event2 = {"index": [10], "order": ["BUY"]}
+        r2 = ""
+        i2 = 11
+        b.AddEvents(events=event2, r=r2, i=i2)
+        signalevent2 = BackTestSignalEvents.objects.last()
+        self.assertEqual(signalevent1, signalevent2)
+        event3 = {"index": [10], "order": ["BUY"]}
+        r3 = "SELL"
+        i3 = 12
+        b.AddEvents(events=event3, r=r3, i=i3)
+        signalevent3 = BackTestSignalEvents.objects.last()
+        self.assertNotEqual(signalevent2, signalevent3)
+        print(f"SignalEvents are {BackTestSignalEvents.objects.all()}")
+        self.assertEqual(signalevent3.side, "SELL")
 
+        BackTestSignalEvents.objects.all().delete()
+        # testing sell, buy, sell patern
+        event1 = {"index": [], "order": []}
+        r1 = "SELL"
+        i1 = 10
+        b.AddEvents(events=event1, r=r1, i=i1)
+        signalevent1 = BackTestSignalEvents.objects.last()
+        self.assertEqual(signalevent1.side, "SELL")
+        event2 = {"index": [10], "order": ["SELL"]}
+        r2 = ""
+        i2 = 11
+        b.AddEvents(events=event2, r=r2, i=i2)
+        signalevent2 = BackTestSignalEvents.objects.last()
+        self.assertEqual(signalevent1, signalevent2)
+        event3 = {"index": [10], "order": ["SELL"]}
+        r3 = "BUY"
+        i3 = 12
+        b.AddEvents(events=event3, r=r3, i=i3)
+        signalevent3 = BackTestSignalEvents.objects.last()
+        self.assertNotEqual(signalevent2, signalevent3)
+        print(f"SignalEvents are {BackTestSignalEvents.objects.all()}")
+        self.assertEqual(signalevent3.side, "BUY")
+
+    def test_BackTestDEma(self):
+        createdf.connectandsave()
+        orders = ["", "SELL", "BUY"]
+        b = ai.BackTest(eval("Candle_1h"))
+        period1 = 3
+        period2 = 10
+        events = b.BackTestDEma(period1, period2)
+        length = len(events["index"])
+        print(f"DEma events{events}")
         if length == 0:
             self.assertEqual(events["order"], [])
         else:
@@ -171,10 +259,57 @@ class BackTestTests(TestCase):
                 self.assertEqual(events["order"][i] in orders, True)
                 self.assertEqual(events["index"][i] < b.len_candles, True)
 
-    def test_Optimize_EMA(self):
+    def test_Optimize_DEma(self):
+        createdf.connectandsave(num_data=500)
+        opt = ai.Optimize(eval("Candle_1h"))
+        events, performance, bestperiod1, bestperiod2 = opt.OptimizeDEma()
+        print(events)
+        self.assertEqual(performance >= 0, True)
+
+    def test_BackTestEma(self):
+        createdf.connectandsave()
+        orders = ["", "SELL", "BUY"]
+        b = ai.BackTest(eval("Candle_1h"))
+        period1 = 3
+        period2 = 10
+        events = b.BackTestEma(period1, period2)
+        length = len(events["index"])
+        print(f"Ema events{events}")
+        if length == 0:
+            self.assertEqual(events["order"], [])
+        else:
+            for i in range(length):
+
+                self.assertEqual(events["order"][i] in orders, True)
+                self.assertEqual(events["index"][i] < b.len_candles, True)
+
+    def test_Optimize_Ema(self):
+        createdf.connectandsave(num_data=500)
+        opt = ai.Optimize(eval("Candle_1h"))
+        events, performance, bestperiod1, bestperiod2 = opt.OptimizeEma()
+        print(events)
+        self.assertEqual(performance >= 0, True)
+
+    def test_BackTestSma(self):
+        createdf.connectandsave()
+        orders = ["", "Sell", "Buy"]
+        b = ai.BackTest(eval("Candle_1h"))
+        period1 = 7
+        period2 = 14
+        events = b.BackTestSma(period1, period2)
+        length = len(events["index"])
+        print(f"SMA events{events}")
+        if length == 0:
+            self.assertEqual(events["order"], [])
+        else:
+            for i in range(length):
+                self.assertEqual(events["order"][i] in orders, True)
+                self.assertEqual(events["index"][i] < b.len_candles, True)
+
+    def test_Optimize_Sma(self):
         createdf.connectandsave()
         opt = ai.Optimize(eval("Candle_1h"))
-        performance, bestperiod1, bestperiod2 = opt.OptimizeEma()
+        events, performance, bestperiod1, bestperiod2 = opt.OptimizeSma()
         self.assertEqual(performance >= 0, True)
 
     def test_BackTestBb(self):
@@ -185,6 +320,7 @@ class BackTestTests(TestCase):
         k = 2
         events = b.BackTestBb(n, k)
         length = len(events["index"])
+        print(f"BB events{events}")
         if length == 0:
             self.assertEqual(events["order"], [])
         else:
@@ -195,7 +331,7 @@ class BackTestTests(TestCase):
     def test_Optimize_BB(self):
         createdf.connectandsave()
         opt = ai.Optimize(eval("Candle_1h"))
-        performance, bestperiod1, bestperiod2 = opt.OptimizeBb()
+        events, performance, bestperiod1, bestperiod2 = opt.OptimizeBb()
         self.assertEqual(performance >= 0, True)
 
     def test_BackTestIchimoku(self):
@@ -205,6 +341,7 @@ class BackTestTests(TestCase):
         t, k, s = 9, 26, 52
         events = b.BackTestIchimoku(t, k, s)
         length = len(events["index"])
+        print(f"Ichimoku events{events}")
         if length == 0:
             self.assertEqual(events["order"], [])
         else:
@@ -221,6 +358,7 @@ class BackTestTests(TestCase):
         signalperiod = 9
         events = b.BackTestMacd(fastperiod, slowperiod, signalperiod)
         length = len(events["index"])
+        print(f"Macd events{events}")
         if length == 0:
             self.assertEqual(events["order"], [])
         else:
@@ -231,7 +369,7 @@ class BackTestTests(TestCase):
     def test_Optimize_Macd(self):
         createdf.connectandsave()
         opt = ai.Optimize(eval("Candle_1h"))
-        performance, bestMacdFastPeriod, bestMacdSlowPeriod, bestMacdSignalPeriod = opt.OptimizeMacd()
+        events, performance, bestMacdFastPeriod, bestMacdSlowPeriod, bestMacdSignalPeriod = opt.OptimizeMacd()
         self.assertEqual(performance >= 0, True)
 
     def test_BsckTestRsi(self):
@@ -243,6 +381,7 @@ class BackTestTests(TestCase):
         sellThread = 30
         events = b.BackTestRsi(period, buyThread, sellThread)
         length = len(events["index"])
+        print(f"Rsi events{events}")
         if length == 0:
             self.assertEqual(events["order"], [])
         else:
@@ -253,7 +392,7 @@ class BackTestTests(TestCase):
     def test_OptimizeRdi(self):
         createdf.connectandsave()
         opt = ai.Optimize(eval("Candle_1h"))
-        performance, bestperiod, bestBuyThread, bestSellThreadd = opt.OptimizeRsi()
+        events, performance, bestperiod, bestBuyThread, bestSellThreadd = opt.OptimizeRsi()
         self.assertEqual(performance >= 0, True)
 
     def test_OptimizeParams(self):
@@ -273,29 +412,49 @@ class BackTestTests(TestCase):
             b = p_1 >= p_2
             self.assertEqual(b, True)
 
+    def test_OptimizeParamsWithEvents(self):
+        """[summary]Check optimized-params are ordered by performance
+        """
+        createdf.connectandsave(num_data=300)
+        opt = ai.Optimize(eval("Candle_1h"))
+        optimizedparamswithevents = opt.OptimizeParamsWithEvent()
+        print(optimizedparamswithevents)
+
 
 class TradeTests(TestCase):
 
-    # def test_is_Create(self):
-    #     api_key = key.api_key
-    #     api_secret = key.api_secret
-    #     ts = ai.Trade(api_key, api_secret, duration="s")
-    #     tm = ai.Trade(api_key, api_secret, duration="m")
-    #     time.sleep(2)
-    #     candle = get_data.Candle(api_key, api_secret)
-    #     candle.CreateCandleWithDuration("s")
-    #     candle.CreateCandleWithDuration("m")
-    #     bs = ts.is_Create()
-    #     bm = tm.is_Create()
+    def test_GetClose(self):
+        createdf.connectandsave(num_data=300)
+        api_key = key.api_key
+        api_secret = key.api_secret
+        t = ai.Trade(api_key=api_key, api_secret=api_secret, backtest=True)
+        t.GetClose()
+        self.assertIsNot(t.now_position, None)
+        self.assertIsNot(t.price, None)
+        self.assertIsNot(t.latest_close, None)
+        self.assertIsNot(t.before_close, None)
 
-    #     self.assertEqual(bs, True)
-    #     self.assertEqual(bm, False)
+    def test_SendOrders(self):
+        createdf.connectandsave(num_data=300)
+        api_key = key.api_key
+        api_secret = key.api_secret
+        t = ai.Trade(api_key=api_key, api_secret=api_secret, backtest=True)
+        SELLSIGNAL = True
+        BUYSIGNAL = False
+        t.SendOrders(SELLSIGNAL, BUYSIGNAL)
+        SELLSIGNAL = False
+        BUYSIGNAL = True
+        t.SendOrders(SELLSIGNAL, BUYSIGNAL)
+        SELLSIGNAL = False
+        BUYSIGNAL = False
+        t.SendOrders(SELLSIGNAL, BUYSIGNAL)
 
     def test_Trade(self):
         """[summary] Testing Trade with only backetest.
         """
-        createdf.connectandsave()
+        createdf.connectandsave(num_data=300)
         api_key = key.api_key
         api_secret = key.api_secret
-        t = ai.Trade(api_key=api_key, api_secret=api_secret)
-        t.Trade()
+        t = ai.Trade(api_key=api_key, api_secret=api_secret, backtest=True)
+        algo = "Ema"
+        t.Trade(algo=algo)
