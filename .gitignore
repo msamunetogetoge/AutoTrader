@@ -3,8 +3,9 @@
 #logfile
 logs/
 #api-key file
-key.py
-
+^key
+#migration file
+chart/migrations/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
