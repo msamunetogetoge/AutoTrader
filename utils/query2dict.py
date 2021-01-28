@@ -7,6 +7,7 @@ def get_data(query):
     kwargs = {}
     kwargs["Sma"] = {"params": (int(query["smaperiod1"]), int(query["smaperiod2"]))}
     kwargs["Ema"] = {"params": (int(query["emaperiod1"]), int(query["emaperiod2"]))}
+    kwargs["DEma"] = {"params": (int(query["demaperiod1"]), int(query["demaperiod2"]))}
     kwargs["Bb"] = {"params": (int(query["bbandN"]), float(query["bbandk"]))}
     kwargs["Rsi"] = {"params": (int(query["rsiperiod"]), float(query["rsibuythread"]), float(query["rsisellthread"]))}
     kwargs["Macd"] = {"params": (int(query["macdfastperiod"]), int(query["macdslowperiod"]), int(query["macdsignalperiod"]))}

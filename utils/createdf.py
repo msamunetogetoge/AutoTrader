@@ -3,6 +3,7 @@ from chart.controllers import get_data
 
 import datetime
 import sqlite3
+import pandas as pd
 
 
 def DateTime(date):
@@ -24,6 +25,11 @@ def register(datas, model_name):
 
 
 def connectandsave(num_data=60):
+    """[summary] create model objects(Candle_1h) from stockdata.sql tablename=BTC_JPY_1h0m0s.
+
+    Args:
+        num_data (int, optional): [description]. Defaults to 60.
+    """
     model_name = "Candle_1h"
     name = "stockdata.sql"
     conn = sqlite3.connect(name)
@@ -36,3 +42,20 @@ def connectandsave(num_data=60):
     register(datas=X, model_name=model_name)
     cur.close()
     conn.close()
+
+
+def csv2models():
+    data_name = "BTC_JPY_bitflyer.csv"
+    csv_data = pd.read_csv(data_name)
+    csv_data["time"] = pd.to_datetime(csv_data["time"], format='%Y年%m月%d日')
+    for _, data in csv_data.iterrows():
+        model = Candle_BackTest()
+        model.time = data.time
+        model.close = int(data.close.replace(",", ""))
+        model.open = int(data.open.replace(",", ""))
+        model.high = int(data.high.replace(",", ""))
+        model.low = int(data.low.replace(",", ""))
+        model.volume = int(float(data.volume.replace("K", "")) * 1000)
+        print(model)
+        model.save()
+    print("models saved!")
