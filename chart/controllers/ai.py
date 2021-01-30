@@ -11,6 +11,7 @@ import datetime
 import time
 import logging
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -689,8 +690,11 @@ class Trade(Optimize):
         self.stoplimitpercent = stoplimitpercent
         self.stoplimit = 0.0
         self.b.GetExecutions()
+        self.bestparams = None
 
     def GetClose(self):
+        """[summary]Get Close data. If this function called, get new candle.
+        """
         self.candles = get_data.Candle(self.api_key, self.api_secret, code=self.product_code).GetAllCandle(duration=self.duration)
         super().__init__(candles=self.candles)
         signalevent = SignalEvents.objects.last()
@@ -739,6 +743,24 @@ class Trade(Optimize):
             print(f"{datetime.datetime.now()} No Trade")
             logging.info("No Trade Occured")
 
+    def BbAlgo(self):
+        """[summary]現在の足の終値が,lowerbandを上に突き抜け、かつ、現在の終値がN/2 期で最大なら買う。売りは逆。
+        """
+        self.GetClose()
+        if self.bestparams is None:
+            _, _, bestN, bestk = self.OptimizeBb()
+            bestparams = (bestN, bestk)
+        else:
+            bestN = self.bestparams[0]
+            bestk = self.bestparams[1]
+            bestparams = self.bestparams
+
+        len_candles = self.len_candles - 1
+        upperband, _, lowerband = self.Bbands(N, k)
+        sellsignal = self.RBb(bbUp=upperband, bbDown=lowerband, close=self.close, n=N, i=len_candles) == "SELL"
+        buysignal = self.RBb(bbUp=upperband, bbDown=lowerband, close=self.close, n=N, i=len_candles) == "BUY"
+        return bestparams, sellsignal, buysignal
+
     def FollowAlgo(self):
         """[summary]現在の足の終値が前の足の終値を下回って、現在の保有ポジションの総損益が損失になったときは成り行き注文でドテン売りする、または保有しているポジションがないときは成り行き注文で売る。
             買いポジションを取るときはこの逆。
@@ -746,53 +768,79 @@ class Trade(Optimize):
         self.GetClose()
         sellsignal = min(self.latest_close, self.price) < self.before_close
         buysignal = max(self.latest_close, self.price) > self.before_close
-        return sellsignal, buysignal
+        bestparams = ()
+        return bestparams, sellsignal, buysignal
 
     def EmaAlgo(self):
         """[summary] golden closs + close > ema1 なら買う。dead closs + close<ema1 なら売る。
         """
         self.GetClose()
-        Emaperiod1 = 3
-        Emaperiod2 = 10
+        if self.bestparams is None:
+            _, _, bestperiod1, bestperiod2 = self.OptimizeEma()
+            Emaperiod1 = bestperiod1
+            Emaperiod2 = bestperiod2
+            best_periods = (Emaperiod1, Emaperiod2)
+        else:
+            Emaperiod1 = self.bestparams[0]
+            Emaperiod2 = self.bestparams[1]
+            best_periods = self.bestparams
         len_candles = self.len_candles - 1
         Ema1 = self.Ema(Emaperiod1)
         Ema2 = self.Ema(Emaperiod2)
-
         sellsignal = self.REma(Ema1, Ema2, self.close, i=len_candles) == "SELL" or min(self.latest_close, self.price) < self.before_close
         buysignal = self.REma(Ema1, Ema2, self.close, i=len_candles) == "BUY"
-        return sellsignal, buysignal
+        logging.info(f"Optimized Ema params={Emaperiod1, Emaperiod2}")
+        print(f"Optimized Ema params={Emaperiod1, Emaperiod2}")
+        return best_periods, sellsignal, buysignal
 
     def DEmaAlgo(self):
         """[summary] golden closs + close > ema1 なら買う。dead closs + close<ema1 なら売る。
         """
         self.GetClose()
-        Emaperiod1 = 3
-        Emaperiod2 = 10
+        if self.bestparams is None:
+            _, _, bestperiod1, bestperiod2 = self.OptimizeDEma()
+            Emaperiod1 = bestperiod1
+            Emaperiod2 = bestperiod2
+            best_periods = (Emaperiod1, Emaperiod2)
+        else:
+            Emaperiod1 = self.bestparams[0]
+            Emaperiod2 = self.bestparams[1]
+            best_periods = self.bestparams
         len_candles = self.len_candles - 1
         Ema1 = self.DEma(Emaperiod1)
         Ema2 = self.DEma(Emaperiod2)
-
         sellsignal = self.RDEma(Ema1, Ema2, self.close, i=len_candles) == "SELL" or min(self.latest_close, self.price) < self.before_close
         buysignal = self.RDEma(Ema1, Ema2, self.close, i=len_candles) == "BUY"
-        return sellsignal, buysignal
+        return best_periods, sellsignal, buysignal
 
     def SmaAlgo(self):
         """[summary] golden closs + close > ema1 なら買う。dead closs + close<ema1 なら売る。
         """
         self.GetClose()
-        Emaperiod1 = 3
-        Emaperiod2 = 10
+        if self.bestparams is None:
+            _, _, bestperiod1, bestperiod2 = self.OptimizeSma()
+            Emaperiod1 = bestperiod1
+            Emaperiod2 = bestperiod2
+            best_periods = (Emaperiod1, Emaperiod2)
+        else:
+            Emaperiod1 = self.bestparams[0]
+            Emaperiod2 = self.bestparams[1]
+            best_periods = self.bestparams
+
         len_candles = self.len_candles - 1
         Ema1 = self.Sma(Emaperiod1)
         Ema2 = self.Sma(Emaperiod2)
 
         sellsignal = self.RSma(Ema1, Ema2, self.close, i=len_candles) == "SELL" or min(self.latest_close, self.price) < self.before_close
         buysignal = self.RSma(Ema1, Ema2, self.close, i=len_candles) == "BUY"
-        return sellsignal, buysignal
+        return best_periods, sellsignal, buysignal
 
-    def Trade(self, algo, time_sleep=60):
-        SELLSIGNAL, BUYSIGNAL = eval("self." + algo + "Algo")()
+    def Trade(self, algo="Ema", time_sleep=60):
+        print(f"backtest={self.backtest}")
+        bestparams, SELLSIGNAL, BUYSIGNAL = eval("self." + algo + "Algo")()
+        self.bestparams = bestparams
         self.SendOrders(SELLSIGNAL=SELLSIGNAL, BUYSIGNAL=BUYSIGNAL)
+        print(f"Trade Done. algo={algo}, params={bestparams}")
         stime = time_sleep * 60
         print("Sleepng...")
         time.sleep(stime)

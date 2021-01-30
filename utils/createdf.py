@@ -56,6 +56,5 @@ def csv2models():
         model.high = int(data.high.replace(",", ""))
         model.low = int(data.low.replace(",", ""))
         model.volume = int(float(data.volume.replace("K", "")) * 1000)
-        print(model)
         model.save()
     print("models saved!")

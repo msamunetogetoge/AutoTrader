@@ -2,6 +2,9 @@ from django.core.management.base import BaseCommand
 
 from chart.controllers import ai
 import key
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
@@ -20,8 +23,9 @@ class Command(BaseCommand):
 
         api_key = key.api_key
         api_secret = key.api_secret
-        backtest = False
-        print(f"Start Trading backtest={backtest}")
+        backtest = True
+        print("Start backtest")
+        logging.info("start backtest")
         while True:
             A = ai.Trade(api_key=api_key, api_secret=api_secret, backtest=backtest, duration="h")
-            A.Trade(algo=options["algo"], time_sleep=45)
+            A.Trade(algo=options["algo"], time_sleep=0.15)

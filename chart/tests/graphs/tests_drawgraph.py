@@ -10,7 +10,6 @@ from utils import createdf
 import numpy as np
 import talib
 import datetime
-import mplfinance as mpf
 
 
 # Create your tests here.

@@ -85,7 +85,7 @@ class AlgoList(models.Model):
 
 
 class UsingALgo(models.Model):
-    algo = models.ForeignKey(AlgoList, on_delete=models.PROTECT,)
+    algo = models.ForeignKey(AlgoList, on_delete=models.PROTECT)
 
 
 class SmaParams(models.Model):

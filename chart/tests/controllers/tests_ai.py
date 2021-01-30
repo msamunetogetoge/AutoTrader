@@ -259,7 +259,7 @@ class BackTestTests(TestCase):
                 self.assertEqual(events["order"][i] in orders, True)
                 self.assertEqual(events["index"][i] < b.len_candles, True)
 
-    def test_Optimize_DEma(self):
+    def test_OptimizeDEma(self):
         createdf.connectandsave(num_data=500)
         opt = ai.Optimize(eval("Candle_1h"))
         events, performance, bestperiod1, bestperiod2 = opt.OptimizeDEma()
@@ -283,11 +283,12 @@ class BackTestTests(TestCase):
                 self.assertEqual(events["order"][i] in orders, True)
                 self.assertEqual(events["index"][i] < b.len_candles, True)
 
-    def test_Optimize_Ema(self):
+    def test_OptimizeEma(self):
         createdf.connectandsave(num_data=500)
         opt = ai.Optimize(eval("Candle_1h"))
         events, performance, bestperiod1, bestperiod2 = opt.OptimizeEma()
         print(events)
+        print(f"bestperiods={bestperiod1, bestperiod2}")
         self.assertEqual(performance >= 0, True)
 
     def test_BackTestSma(self):
