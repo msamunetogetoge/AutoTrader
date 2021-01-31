@@ -1,0 +1,41 @@
+version: "3"
+
+services:
+  db:
+    container_name: db
+    image: postgres:alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=autotrade
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+
+  gunicorn:
+    build: .
+    image: gunicorn:latest
+    container_name: gunicorn_django_autotrader
+    command: >
+      bash -c "./dbinit.sh &&
+      python manage.py collectstatic --noinput &&
+      gunicorn autotrade.wsgi --bind=unix:/var/run/gunicorn/gunicorn.sock"
+
+    volumes:
+      - .:/usr/src/app/
+      - gunicorn:/var/run/gunicorn
+
+  nginx:
+    image: nginx:1.17.7
+    container_name: nginx
+    depends_on:
+      - gunicorn
+      - db
+    ports:
+      - "80:80"
+    volumes:
+      - ./gunicorn.conf:/etc/nginx/conf.d/default.conf
+      - gunicorn:/var/run/gunicorn
+      - ./static:/static
+volumes:
+  gunicorn:
+    driver: local
