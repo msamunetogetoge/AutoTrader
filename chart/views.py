@@ -116,6 +116,10 @@ class SignalEventsView(ListView):
         return context
 
     def get_queryset(self):
+        if not models.SignalEvents.objects.exists():
+            api_key = key.api_key
+            api_secret = key.api_secret
+            get_data.Balance(api_key=api_key, api_secret=api_secret).GetExecutions()
         return models.SignalEvents.objects.all().order_by("-time")
 
 

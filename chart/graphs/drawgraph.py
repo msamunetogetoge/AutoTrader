@@ -4,19 +4,16 @@ import key
 
 from pathlib import Path
 import os
-import pandas as pd
 
 from django_pandas.io import read_frame
 
 import plotly.graph_objects as go
 from plotly.offline import plot
 from plotly.subplots import make_subplots
-# from datetime import datetime
-
-# import matplotlib
-# matplotlib.use('Agg')
-# import mplfinance as mpf
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
 MEDIA_URL = '/media/'
@@ -91,15 +88,20 @@ class Graph:
             for i, t in enumerate(x):
                 x[i] = self.ticker.TruncateDateTime(duration=self.duration, time=t)
             event = list(signalevents.values_list("side", "price", "size"))
-            self.fig.add_trace(go.Scatter(x=x, y=self.df["close"][x], name="Child orders", mode="markers",
-                                          text=event, textposition="bottom left", textfont=dict(
-                family="sans serif",
-                size=12,
-                color="black"),
-                marker=dict(
-                color='maroon',
-                size=6,)
-            ), secondary_y=True)
+            try:
+                # 昔のデータ等はグラフに表示しない
+                self.fig.add_trace(go.Scatter(x=x, y=self.df["close"][x], name="Child orders", mode="markers",
+                                              text=event, textposition="bottom left", textfont=dict(
+                    family="sans serif",
+                    size=12,
+                    color="black"),
+                    marker=dict(
+                    color='maroon',
+                    size=6,)
+                ), secondary_y=True)
+            except Exception as e:
+                logging.info(e)
+                pass
 
         plot_fig = plot(self.fig, output_type='div', include_plotlyjs=False)
         return plot_fig
@@ -111,7 +113,7 @@ class Graph:
         Returns:
             [type] mpf.make_addplot(): [description] Graph of Emas, Ema(args[0])=orange, Ema(args[1])=red.
         """
-        if len(args) == 2:
+        if len(args) == 2 and len(self.df) > max(args):
             t = ai.Technical(candles=self.datas)
             self.df["sma1"] = t.Sma(timeperiod=args[0])[-self.num_data:]
             self.df["sma2"] = t.Sma(timeperiod=args[1])[-self.num_data:]
@@ -128,7 +130,7 @@ class Graph:
         Returns:
             [type] mpf.make_addplot(): [description] Graph of Emas, Ema(args[0])=orange, Ema(args[1])=red.
         """
-        if len(args) == 2:
+        if len(args) == 2 and len(self.df) > max(args):
             t = ai.Technical(candles=self.datas)
             self.df["ema1"] = t.Ema(timeperiod=args[0])[-self.num_data:]
             self.df["ema2"] = t.Ema(timeperiod=args[1])[-self.num_data:]
@@ -145,7 +147,7 @@ class Graph:
         Returns:
             [type] mpf.make_addplot(): [description] Graph of DEmas, DEma(args[0])=orange, DEma(args[1])=red.
         """
-        if len(args) == 2:
+        if len(args) == 2 and len(self.df) > max(args):
             t = ai.Technical(candles=self.datas)
             self.df["dema1"] = t.DEma(timeperiod=args[0])[-self.num_data:]
             self.df["dema2"] = t.DEma(timeperiod=args[1])[-self.num_data:]
@@ -162,7 +164,7 @@ class Graph:
         Returns:
             [type] mpf.make_addplot(): [description] Graph of BBands, bands =blue
         """
-        if len(args) == 2:
+        if len(args) == 2 and len(self.df) > max(args):
             t = ai.Technical(candles=self.datas)
             u, _, l = t.Bbands(args[0], args[1])
             self.df["upperband"], self.df["lowerband"] = u[-self.num_data:], l[-self.num_data:]
@@ -180,7 +182,7 @@ class Graph:
             Returns:
                 [type] mpf.make_addplot(): [description] Graph of Macd, macd = orange, macdsignal = red, macdhist = skyblue.
         """
-        if len(args) == 3:
+        if len(args) == 3 and len(self.df) > max(args):
             t = ai.Technical(candles=self.datas)
             macd, macdsignal, macdhist = t.Macd(args[0], args[1], args[2])
             self.df["macd"], self.df["macdsignal"], self.df["macdhist"] = macd[-self.num_data:], macdsignal[-self.num_data:], macdhist[-self.num_data:]
@@ -199,7 +201,7 @@ class Graph:
             Returns:
                 [type] mpf.make_addplot(): [description] Graph of Rsi
         """
-        if len(args) == 3:
+        if len(args) == 3 and len(self.df) > max(args):
             t = ai.Technical(candles=self.datas)
             self.df["rsi"] = t.Rsi(args[0])[-self.num_data:]
             self.df["buythread"] = np.array([30.0] * len(self.df)).reshape(-1,)
@@ -224,7 +226,7 @@ class Graph:
             Returns:
                 [type] mpf.make_addplot(): [description] Graph of Ichimoku, tenkansen = orange, kijunsen = red, senkou =black, chikou=pink
         """
-        if len(args) == 3:
+        if len(args) == 3 and len(self.df) > max(args):
             t = ai.Technical(candles=self.datas)
             t, k, s_A, s_B, c = t.Ichimoku(args[0], args[1], args[2])
             self.df["tenkan"], self.df["kijun"], self.df["senkouA"], self.df["senkouB"], self.df["chikou"] = t[-self.num_data:], k[-self.num_data:], s_A[-self.num_data:], s_B[-self.num_data:], c[-self.num_data:]

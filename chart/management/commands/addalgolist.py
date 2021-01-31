@@ -23,4 +23,3 @@ class Command(BaseCommand):
             algolist.algo = algolists["algo"][i]
             algolist.detail = algolists["detail"][i]
             algolist.save()
-        print(AlgoList.objects.first())

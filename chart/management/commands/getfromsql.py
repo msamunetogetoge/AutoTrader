@@ -50,5 +50,8 @@ class Command(BaseCommand):
             conn.close()
 
         for duration in ["s", "m", "h"]:
-            connectandsave(duration)
-            print(f"End Saving {duration} Datas!")
+            try:
+                connectandsave(duration)
+                print(f"End Saving {duration} Datas!")
+            except sqlite3.OperationalError:
+                print(f"No such table duration = {duration}")

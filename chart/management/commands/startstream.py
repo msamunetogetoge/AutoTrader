@@ -5,6 +5,29 @@ import time
 from chart.models import *
 from chart.controllers import get_data
 import key
+import threading
+
+
+api_key = key.api_key
+api_secret = key.api_secret
+
+
+class StreamThread(threading.Thread):
+    def __init__(self):
+        super(StreamThread, self).__init__()
+        self.setDaemon(False)
+        self.name = "StreamThread"
+
+    def run(self):
+        while True:
+            durations = ["s", "m", "h"]
+            cdl = get_data.Candle(api_key=api_key, api_secret=api_secret)
+            for duration in durations:
+                cdl.CreateCandleWithDuration(duration=duration)
+                model = eval("Candle_1" + duration)
+                ticker = model.objects.last()
+                print(f"CreateCandleWithDuration:{ticker}")
+                time.sleep(5)
 
 
 class Command(BaseCommand):
@@ -15,15 +38,6 @@ class Command(BaseCommand):
     """
 
     def handle(self, *args, **options):
+        th = StreamThread()
         print("Start GetCandles")
-        api_key = key.api_key
-        api_secret = key.api_secret
-        durations = ["s", "m", "h"]
-        while True:
-            cdl = get_data.Candle(api_key=api_key, api_secret=api_secret)
-            for duration in durations:
-                cdl.CreateCandleWithDuration(duration=duration)
-                model = eval("Candle_1" + duration)
-                ticker = model.objects.last()
-                print(f"CreateCandleWithDuration:{ticker}")
-            time.sleep(5)
+        th.start()
