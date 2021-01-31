@@ -182,8 +182,12 @@ def AutoTrade(request):
                 TradeThread is running and trading per 45 minutes background when autotrade.html POSTs "select_algo"
     """
     global stop
+
     api_key = key.api_key
     api_secret = key.api_secret
+    if not models.SignalEvents.objects.exists():
+        get_data.Balance(api_key=api_key, api_secret=api_secret).GetExecutions()
+
     signalevents = models.SignalEvents.objects.order_by("-time")[:5]
     algolists = models.AlgoList.objects.all()
     algolistsform = models.AlgoListForm()
