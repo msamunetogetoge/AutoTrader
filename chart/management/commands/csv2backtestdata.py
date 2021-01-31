@@ -27,5 +27,5 @@ class Command(BaseCommand):
                 model.save()
             first = Candle_BackTest.objects.first().time
             last = Candle_BackTest.objects.last().time
-            print(f"data is saved! first object is {first}, last object is {last} ")
+            print(f"backtest data is saved! first object is {first}, last object is {last} ")
         csv2models()
