@@ -21,10 +21,10 @@ python manage.py authcheck
 ```  
 3. 適当なブラウザで`localhost` に接続
 4. 以下のコマンドでデータの収集を開始(docker-compose とか、最初の段階で動かしたいけど上手くいかなかった)
-'''
+```
 docker exec -it gunicorn_django_autotrader /bin/bash
 python manage.py startstream
-'''
+```
 ## 画面の解説
 ### 最初の画面
 ![landingpagedemo](/static/img/index.jpg)  
