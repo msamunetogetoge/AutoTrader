@@ -39,9 +39,11 @@ class Ticker():
             return date
 
         elif isinstance(time, datetime.datetime):
-            date = time
+            timeformat = "%Y-%m-%dT%H:%M:%S"
+            date = datetime.datetime.strptime(
+                time.strftime(timeformat), timeformat)
         else:
-            print("time is str or datetime.datetime ")
+            print("time type is must be str or datetime.datetime ")
 
         return date
 
@@ -69,7 +71,13 @@ class Ticker():
             date = datetime.datetime.strptime(
                 date.strftime(timeformat), timeformat)
         elif duration == "s":
-            date = date
+            timeformat = "%Y-%m-%dT%H:%M:%S"
+            date = datetime.datetime.strptime(
+                date.strftime(timeformat), timeformat)
+        elif duration == "d":
+            timeformat = "%Y-%m-%d"
+            date = datetime.datetime.strptime(
+                date.strftime(timeformat), timeformat)
         return date
 
     def GetMidPrice(self):

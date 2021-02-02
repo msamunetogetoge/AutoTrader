@@ -20,7 +20,7 @@ class StreamThread(threading.Thread):
 
     def run(self):
         while True:
-            durations = ["s", "m", "h"]
+            durations = ["s", "m", "h", "d"]
             cdl = get_data.Candle(api_key=api_key, api_secret=api_secret)
             for duration in durations:
                 cdl.CreateCandleWithDuration(duration=duration)

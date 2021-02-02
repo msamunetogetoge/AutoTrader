@@ -63,6 +63,19 @@ class Candle_1h(models.Model):
         return f"duration=h,{self.time} {self.product_code} open={self.open} close={self.close} volume={self.volume}"
 
 
+class Candle_1d(models.Model):
+    time = models.DateTimeField(primary_key=True)
+    product_code = models.CharField(default="BTC_JPY", max_length=15)
+    open = models.FloatField()
+    close = models.FloatField()
+    high = models.FloatField()
+    low = models.FloatField()
+    volume = models.FloatField()
+
+    def __str__(self):
+        return f"duration=d,{self.time} {self.product_code} open={self.open} close={self.close} volume={self.volume}"
+
+
 class Candle_BackTest(models.Model):
     time = models.DateTimeField(primary_key=True)
     product_code = models.CharField(default="BTC_JPY", max_length=15)

@@ -154,7 +154,7 @@ class Graph:
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["dema1"], name=f"dema({args[0]})", line=dict(color='orange', width=1), visible='legendonly'), secondary_y=True)
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["dema2"], name=f"dema({args[1]})", line=dict(color='red', width=1), visible='legendonly'), secondary_y=True)
         else:
-            print("args=(period1, period2) where periods are int.")
+            print("draw DEma:args=(period1, period2) or database length have some issue")
             return None
 
     def AddBb(self, *args):
@@ -171,7 +171,7 @@ class Graph:
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["upperband"], mode="lines", name="upperband", line=dict(color='blue', width=1), visible='legendonly'), secondary_y=True)
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["lowerband"], mode="lines", name="lowerband", line=dict(color='blue', width=1), visible='legendonly'), secondary_y=True)
         else:
-            print("args=(BbN, Bbk) where BbN is int, Bbk is float.")
+            print("draw Bb:args=(BbN, Bbk) or database length have some issue")
             return None
 
     def AddMacd(self, *args):
@@ -190,7 +190,7 @@ class Graph:
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["macdsignal"], mode="lines", name="macd", line=dict(color='red', width=1)), row=2, col=1)
             self.fig.add_trace(go.Bar(x=self.df.index, y=self.df["macdhist"], name="macdhist", marker_color='blueviolet'), row=2, col=1)
         else:
-            print("args=(fastperiod, slowperiod, signalperiod) where args are int.")
+            print("args=(fastperiod, slowperiod, signalperiod) or database length have some issue")
             return None
 
     def AddRsi(self, *args):
@@ -215,7 +215,7 @@ class Graph:
             # apdict = [apdict1, apdict2, apdict3]
             # return apdict
         else:
-            print("args=(timeperiod, buythread, sellthread ) where timeperiod is int.")
+            print("draw Rsi:args=(timeperiod, buythread, sellthread ) or database length have some issue")
             return None
 
     def AddIchimoku(self, *args):
@@ -236,7 +236,7 @@ class Graph:
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["senkouB"], mode="lines", name="senkouB", line=dict(color='black', width=1), visible='legendonly'), secondary_y=True)
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["chikou"], mode="lines", name="chikou", line=dict(color='pink', width=1), visible='legendonly'), secondary_y=True)
         else:
-            print("args=(t, k, s ) where args are int.")
+            print("draw Ichimoku:args=(t, k, s ) or database length have some issue")
             return None
 
     def CustomDraw(self, **kwargs):
