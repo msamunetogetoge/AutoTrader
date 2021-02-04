@@ -62,45 +62,14 @@ def index(request, duration="h"):
     })
 
 
-def optimize(request, duration="h"):
-    Ema = models.EmaForm
-    Sma = models.SmaForm
-    Bb = models.BbForm
-    Ichimoku = models.IchimokuForm
-    Rsi = models.RsiForm
-    Macd = models.MacdForm
-    G = drawgraph.Graph(duration=duration, num_data=50)
-    if duration == "s":
-        candles = models.Candle_1s
-    if duration == "m":
-        candles = models.Candle_1m
-    else:
-        candles = models.Candle_1h
-    codes = ["Ema", "Sma", "Bb", "Macd", "Rsi", "Ichimoku"]
-    kwargs = {}
-    optimized_params = ai.Optimize(candles=candles).OptimizeParams()
-    for code in optimized_params.keys():
-        kwargs[code] = {"params": optimized_params[code]["params"]}
-    print(kwargs)
-    graph = G.CustomDraw(**kwargs)
-
-    return render(request, "chart/index.html", {
-        "graph": graph,
-        "Ema": Ema,
-        "Sma": Sma,
-        "Bb": Bb,
-        "Ichimoku": Ichimoku,
-        "Rsi": Rsi,
-        "Macd": Macd
-    })
-
-
 def backtest(request, indicator=None):
     G = drawgraph.Graph(duration="h", num_data=300, backtest=True)
     graph = G.DrawCandleStickWithOptimizedEvents(indicator=indicator)
+    algolist = models.AlgoList.objects.all().values_list("algo", flat=True)
 
     return render(request, "chart/backtest.html", {
         "graph": graph,
+        "algolist": algolist,
     })
 
 
@@ -155,7 +124,7 @@ def Trade(request, duration="h", side=None, code="BTC_JPY"):
     })
 
 
-stop = False
+event = threading.Event()
 
 
 class TradeThread(threading.Thread):
@@ -171,9 +140,16 @@ class TradeThread(threading.Thread):
     def run(self):
         print(f'START Trading algo={self.algo_name} ')
         with self.Lock:
-            while not stop:
-                self.T.Trade(algo=self.algo_name, time_sleep=self.sleep_time)
-        print(f"END Trading algo= {self.algo_name}")
+            while True:
+                print("Trade Start")
+                self.T.Trade(algo=self.algo_name)
+                for duration in ["s", "m"]:
+                    if eval("models.Candle_1" + duration).objects.all().count() > 50000:
+                        eval("models.Candle_1" + duration).objects.all().delete()
+                print("Sleepng For Next Trade")
+                if event.wait(timeout=60 * self.sleep_time):
+                    print(f"END Trading algo= {self.algo_name}")
+                    break
 
 
 def AutoTrade(request):
@@ -181,13 +157,10 @@ def AutoTrade(request):
                 models.UsingALgo detect using algo. ON/OFF switch is global stop.
                 TradeThread is running and trading per 45 minutes background when autotrade.html POSTs "select_algo"
     """
-    global stop
-
     api_key = key.api_key
     api_secret = key.api_secret
     if not models.SignalEvents.objects.exists():
         get_data.Balance(api_key=api_key, api_secret=api_secret).GetExecutions()
-
     signalevents = models.SignalEvents.objects.order_by("-time")[:5]
     algolists = models.AlgoList.objects.all()
     algolistsform = models.AlgoListForm()
@@ -195,7 +168,6 @@ def AutoTrade(request):
         # POST request has 2 pattern. 'select autotrading algo' or 'cancel or re-select autotrading algo'.
         print(f"Aliving Thread is {threading.active_count()}")
         if request.POST.get("stop_algo") is None:
-            stop = False
             # 'select autotrading algo' pattern. add UsingAlgo objects.
             algo_name = request.POST.get("select_algo")
             algo = models.AlgoList.objects.get(algo=algo_name)
@@ -219,12 +191,11 @@ def AutoTrade(request):
 
         else:
             # 'cancel or re-select autotrading algo' pattern. delete UsingAlgo objects.
-            stop = True
+            event.set()
             models.UsingALgo.objects.all().delete()
             isAutoTrade(request)
 
             return render(request, "chart/autotrade.html", {
-
                 "signalevents": signalevents,
                 "algolists": algolists,
                 "form": algolistsform
@@ -238,7 +209,6 @@ def AutoTrade(request):
             "usealgo": algo,
             "signalevents": signalevents,
         })
-
     else:
         # if UsingAlgo has no object and not POST request, send html to usacble algo list and history.
         return render(request, "chart/autotrade.html", {

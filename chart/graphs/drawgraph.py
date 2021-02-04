@@ -82,7 +82,14 @@ class Graph:
         if signalevents is not None:
             # if signalevents is not None,use REAL execution history
             signalevents = SignalEvents.objects.order_by("time")
-            index_first = str(self.df.head(1).index.values[0])[:19]
+            try:
+                # if df have no items, stop drawing
+                index_first = str(self.df.head(1).index.values[0])[:19]
+            except IndexError as e:
+                logging.error(e)
+                plot_fig = plot(self.fig, output_type='div', include_plotlyjs=False)
+                return plot_fig
+
             signalevents = signalevents.filter(time__gte=index_first)
             x = list(signalevents.values_list("time", flat=True))
             for i, t in enumerate(x):
@@ -265,18 +272,23 @@ class Graph:
             performance = results[1]
             params = results[2:]
             event = list(events["order"])
-            add = eval("self.Add" + indicator + f"(*{params})")
-            x = list(BackTestSignalEvents.objects.values_list("time", flat=True))
-            event = list(BackTestSignalEvents.objects.values_list("side", flat=True))
-            self.fig.add_trace(go.Scatter(x=x, y=self.df["close"][x], name=f"Events of {indicator}", mode="markers+text",
-                                          text=event, textposition="bottom left", textfont=dict(
-                family="sans serif",
-                size=18,
-                color="black"),
-                marker=dict(
-                color='maroon',
-                size=10,)
-            ), secondary_y=True)
+            try:
+                add = eval("self.Add" + indicator + f"(*{params})")
+            except AttributeError as e:
+                logging.error(e)
+                pass
+            finally:
+                x = list(BackTestSignalEvents.objects.values_list("time", flat=True))
+                event = list(BackTestSignalEvents.objects.values_list("side", flat=True))
+                self.fig.add_trace(go.Scatter(x=x, y=self.df["close"][x], name=f"Events of {indicator}", mode="markers+text",
+                                              text=event, textposition="bottom left", textfont=dict(
+                    family="sans serif",
+                    size=18,
+                    color="black"),
+                    marker=dict(
+                    color='maroon',
+                    size=10,)
+                ), secondary_y=True)
             self.fig.update_layout(title=f"Backtest:{indicator},params={params},performance={performance}")
 
         plot_fig = self.DrawCandleStick(signalevents=None)

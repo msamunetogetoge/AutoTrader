@@ -841,7 +841,3 @@ class Trade(Optimize):
         self.bestparams = bestparams
         self.SendOrders(SELLSIGNAL=SELLSIGNAL, BUYSIGNAL=BUYSIGNAL)
         print(f"Trade Done. algo={algo}, params={bestparams}")
-        stime = time_sleep * 60
-        print("Sleepng...")
-        time.sleep(stime)
-        print("Wake Up")
