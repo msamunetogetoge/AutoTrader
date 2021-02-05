@@ -14,9 +14,10 @@ def isAutoTrade(request: HttpRequest):
 
     if models.UsingALgo.objects.exists():
         algo_name = models.UsingALgo.objects.first().algo.algo
+        duration = models.UsingALgo.objects.first().duration
 
-        dic = {"AUTOTRADE": True, "ALGO": f"AUTOTRADING algo= {algo_name}"}
+        dic = {"AUTOTRADE": True, "ALGO": f"AUTOTRADING algo= {algo_name}", "DURATION": f"duration = {duration}"}
     else:
 
-        dic = {"AUTOTRADE": False, "ALGO": "AUTOTRADIG OFF"}
+        dic = {"AUTOTRADE": False, "ALGO": "AUTOTRADIG OFF", "DURATION": ""}
     return dic
