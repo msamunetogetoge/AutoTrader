@@ -25,6 +25,9 @@ python manage.py authcheck
 docker exec -it gunicorn_django_autotrader /bin/bash
 python manage.py startstream
 ```
+### 起動に関して 
+./docker-compose.yml に書いてあるように、初めにdbinit.shを実行する。  
+その時、データベースに色々データをロードするので、起動が遅い。二度目以降は既にデータがあるので、コメントアウトすると起動が速くなる。  
 ## 画面の解説
 ### 最初の画面
 ![landingpagedemo](/static/img/index.jpg)  
@@ -71,3 +74,5 @@ stockdata.sql に入っているデータをCandle_1s, Candle_1m, Candle_1hに�
 ticker をapi経由で取得し続けるコマンド。 5秒に一回データを取得する。docker で動かした時は自動でスタートしている。
 ### starttrade
 自動売買を始めるコマンド。アルゴリズムを考えて、アプリ側に追加するのが面倒な時に使う。
+
+
