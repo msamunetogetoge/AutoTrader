@@ -4,7 +4,7 @@ from django.utils import timezone
 from autotrade.context_processors import isAutoTrade
 import threading
 from threading import Lock
-import time
+import datetime
 
 
 from chart.graphs import drawgraph
@@ -141,24 +141,31 @@ class TradeThread(threading.Thread):
         print(f'START Trading algo={self.algo_name} ')
         with self.Lock:
             while True:
-                print("Trade Start")
+                print(event)
+                time_now = datetime.datetime.now()
+                delta = datetime.timedelta(seconds=60 * self.sleep_time)
+                next_trade = time_now + delta
                 self.T.Trade(algo=self.algo_name)
                 for duration in ["s", "m"]:
                     if eval("models.Candle_1" + duration).objects.all().count() > 50000:
                         eval("models.Candle_1" + duration).objects.all().delete()
-                print("Sleepng For Next Trade")
+                print(f"Sleepng For Next Trade. Next Trade will {next_trade}")
                 if event.wait(timeout=60 * self.sleep_time):
                     print(f"END Trading algo= {self.algo_name}")
+                    event.clear()
                     break
 
 
 def AutoTrade(request):
     """[summary] from autotrade.html. this view switch autotrading ON/OFF, and select autotrading algo.
                 models.UsingALgo detect using algo. ON/OFF switch is global stop.
-                TradeThread is running and trading per 45 minutes background when autotrade.html POSTs "select_algo"
+                When POST request, TradeThread running and trading per 1/60/1440 minutes.
     """
     api_key = key.api_key
     api_secret = key.api_secret
+    tradetime = {"m": 1, "h": 60, "d": 1440}
+    backtest = False
+
     if not models.SignalEvents.objects.exists():
         get_data.Balance(api_key=api_key, api_secret=api_secret).GetExecutions()
     signalevents = models.SignalEvents.objects.order_by("-time")[:5]
@@ -166,26 +173,28 @@ def AutoTrade(request):
     algolistsform = models.AlgoListForm()
     if request.method == "POST":
         # POST request has 2 pattern. 'select autotrading algo' or 'cancel or re-select autotrading algo'.
-        print(f"Aliving Thread is {threading.active_count()}")
         if request.POST.get("stop_algo") is None:
             # 'select autotrading algo' pattern. add UsingAlgo objects.
             algo_name = request.POST.get("select_algo")
             algo = models.AlgoList.objects.get(algo=algo_name)
-            usingalgo = models.UsingALgo
-            usingalgo(algo=algo).save()
-            if isAutoTrade(request)["AUTOTRADE"]:
-                print("isAuoTrade was called")
-                backtest = False
-                A = ai.Trade(api_key=api_key, api_secret=api_secret, backtest=backtest, duration="h")
-                th = TradeThread(algo_name=algo_name, sleep_time=45, TradeInstance=A)
-                th.name = "TradeThread"
-                th.start()
 
-            else:
-                logging.error("Cant Start Trade")
+            duration = request.POST.get("select_duration")
+            usingalgo = models.UsingALgo
+            usingalgo(algo=algo, duration=duration).save()
+            A = ai.Trade(api_key=api_key, api_secret=api_secret, backtest=backtest, duration=duration)
+            try:
+                pertrade = tradetime[duration]
+            except KeyError as e:
+                logging.error(e)
+                pertrade = 60
+
+            th = TradeThread(algo_name=algo_name, sleep_time=pertrade, TradeInstance=A)
+            th.name = "TradeThread"
+            th.start()
 
             return render(request, "chart/autotrade.html", {
                 "usealgo": algo,
+                "duration": duration,
                 "signalevents": signalevents,
             })
 
@@ -198,22 +207,24 @@ def AutoTrade(request):
             return render(request, "chart/autotrade.html", {
                 "signalevents": signalevents,
                 "algolists": algolists,
-                "form": algolistsform
+                "form": algolistsform,
+                "durations": ["h", "d", "m"],
             })
 
     elif models.UsingALgo.objects.exists():
         print(isAutoTrade(request)["ALGO"])
         algo = models.UsingALgo.objects.first().algo
+        duration = models.UsingALgo.objects.first().duration
 
         return render(request, "chart/autotrade.html", {
             "usealgo": algo,
             "signalevents": signalevents,
+            "duration": duration,
         })
     else:
-        # if UsingAlgo has no object and not POST request, send html to usacble algo list and history.
+        # if UsingAlgo has no object and not POST request, send html to usacble algolists, history and durations list.
         return render(request, "chart/autotrade.html", {
 
             "signalevents": signalevents,
             "algolists": algolists,
-            "form": algolistsform
-        })
+            "form": algolistsform, "dur

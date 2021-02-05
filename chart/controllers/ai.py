@@ -715,7 +715,7 @@ class Trade(Optimize):
         self.stoplimit = self.price * self.stoplimitpercent
         # SELL SIGNAL
         if (SELLSIGNAL or self.latest_close < self.stoplimit) and self.now_position == "BUY":
-            performance = self.price - self.latest_close
+            performance = self.latest_close - self.price
             if self.backtest:
                 print(f"BACKTEST SELL Trade Occur!, potision={self.price}, close={self.latest_close}, performance ={performance} ")
             else:
@@ -835,7 +835,7 @@ class Trade(Optimize):
         buysignal = self.RSma(Ema1, Ema2, self.close, i=len_candles) == "BUY"
         return best_periods, sellsignal, buysignal
 
-    def Trade(self, algo="Ema", time_sleep=60):
+    def Trade(self, algo="Ema"):
         print(f"backtest={self.backtest}")
         bestparams, SELLSIGNAL, BUYSIGNAL = eval("self." + algo + "Algo")()
         self.bestparams = bestparams
