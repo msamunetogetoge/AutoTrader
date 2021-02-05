@@ -99,6 +99,7 @@ class AlgoList(models.Model):
 
 class UsingALgo(models.Model):
     algo = models.ForeignKey(AlgoList, on_delete=models.PROTECT)
+    duration = models.CharField(default="h", max_length=2)
 
 
 class SmaParams(models.Model):
