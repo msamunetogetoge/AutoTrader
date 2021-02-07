@@ -8,7 +8,6 @@ import os
 from django_pandas.io import read_frame
 
 import plotly.graph_objects as go
-from plotly.offline import plot
 from plotly.subplots import make_subplots
 import numpy as np
 import logging
@@ -110,7 +109,7 @@ class Graph:
                 logging.info(e)
                 pass
 
-        plot_fig = plot(self.fig, output_type='div', include_plotlyjs=False)
+        plot_fig = self.fig.to_html(include_plotlyjs=False)
         return plot_fig
 
     def AddSma(self, *args):
