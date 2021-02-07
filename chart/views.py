@@ -227,4 +227,6 @@ def AutoTrade(request):
 
             "signalevents": signalevents,
             "algolists": algolists,
-            "form": algolistsform, "dur
+            "form": algolistsform,
+            "durations": ["h", "d", "m"],
+        })
