@@ -6,11 +6,11 @@ import threading
 from threading import Lock
 import datetime
 
-
+from utils import query2dict
+from utils import changeproductcode
 from chart.graphs import drawgraph
 from chart.controllers import ai, get_data, order
 from chart import models
-from utils import query2dict
 import key
 
 import os
@@ -27,6 +27,10 @@ logger = logging.getLogger(__name__)
 
 
 def index(request, duration="h"):
+    if not models.UsingProductCode.objects.exists():
+        models.UsingProductCode(code="BTC_JPY").save()
+    code = models.UsingProductCode.objects.last().code
+
     DEma = models.DEmaForm
     Ema = models.EmaForm
     Sma = models.SmaForm
@@ -34,7 +38,8 @@ def index(request, duration="h"):
     Ichimoku = models.IchimokuForm
     Rsi = models.RsiForm
     Macd = models.MacdForm
-    G = drawgraph.Graph(duration=duration, num_data=100)
+
+    G = drawgraph.Graph(duration=duration, num_data=100, product_code=code)
     if request.method == "POST":
         kwargs = query2dict.get_data(request.POST)
     else:
@@ -58,7 +63,6 @@ def index(request, duration="h"):
         "Ichimoku": Ichimoku,
         "Rsi": Rsi,
         "Macd": Macd,
-        "s": "s"
     })
 
 
@@ -74,7 +78,11 @@ def backtest(request, indicator=None):
 
 
 class SignalEventsView(ListView):
+    def __init__(self):
+        self.code = models.UsingProductCode.objects.last().code
+
     model = models.SignalEvents
+
     # context_object_name = 'signalevents'
     template_name = 'chart/signalevents.html'
     paginate_by = 10
@@ -85,14 +93,15 @@ class SignalEventsView(ListView):
         return context
 
     def get_queryset(self):
-        if not models.SignalEvents.objects.exists():
-            api_key = key.api_key
-            api_secret = key.api_secret
-            get_data.Balance(api_key=api_key, api_secret=api_secret).GetExecutions()
+        api_key = key.api_key
+        api_secret = key.api_secret
+        get_data.Balance(api_key=api_key, api_secret=api_secret, code=self.code).GetExecutions()
         return models.SignalEvents.objects.all().order_by("-time")
 
 
-def Trade(request, duration="h", side=None, code="BTC_JPY"):
+def Trade(request, duration="h", side=None):
+    code = models.UsingProductCode.objects.last().code
+
     balance = get_data.Balance(key.api_key, key.api_secret, code=code).GetBalance()
     jpy = balance["JPY"]['available']
     btc = code.split("_")[0]
@@ -100,7 +109,7 @@ def Trade(request, duration="h", side=None, code="BTC_JPY"):
 
     child_order_acceptance_id = None
     signalevent = None
-    G = drawgraph.Graph(duration=duration, num_data=30)
+    G = drawgraph.Graph(duration=duration, num_data=30, product_code=code)
     plt_fig = G.DrawCandleStick()
 
     if request.method == "POST":
@@ -110,7 +119,7 @@ def Trade(request, duration="h", side=None, code="BTC_JPY"):
         if side == "BUY":
             child_order_acceptance_id = orders.BUY(currency=size)
         elif side == "SELL":
-            child_order_acceptance_id = orders.SELL(currency=size)
+            child_order_acceptance_id = orders.SELL(size=size)
         if child_order_acceptance_id is not None:
             signalevent = models.SignalEvents.objects.last()
             child_order_acceptance_id = child_order_acceptance_id["child_order_acceptance_id"]
@@ -138,20 +147,19 @@ class TradeThread(threading.Thread):
         self.name = "TradeThread"
 
     def run(self):
-        print(f'START Trading algo={self.algo_name} ')
+        logger.info(f'START Trading algo={self.algo_name} ')
         with self.Lock:
             while True:
-                print(event)
                 time_now = datetime.datetime.now()
                 delta = datetime.timedelta(seconds=60 * self.sleep_time)
                 next_trade = time_now + delta
                 self.T.Trade(algo=self.algo_name)
                 for duration in ["s", "m"]:
-                    if eval("models.Candle_1" + duration).objects.all().count() > 50000:
-                        eval("models.Candle_1" + duration).objects.all().delete()
-                print(f"Sleepng For Next Trade. Next Trade will {next_trade}")
+                    if eval("models.Candle_1" + duration + self.T.product_code).objects.all().count() > 50000:
+                        eval("models.Candle_1" + duration + self.T.product_code).objects.all().delete()
+                logger.info(f"Sleepng For Next Trade. Next Trade will {next_trade}")
                 if event.wait(timeout=60 * self.sleep_time):
-                    print(f"END Trading algo= {self.algo_name}")
+                    logger.info(f"END Trading algo= {self.algo_name}")
                     event.clear()
                     break
 
@@ -160,11 +168,18 @@ def AutoTrade(request):
     """[summary] from autotrade.html. this view switch autotrading ON/OFF, and select autotrading algo.
                 models.UsingALgo detect using algo. ON/OFF switch is global stop.
                 When POST request, TradeThread running and trading per 1/60/1440 minutes.
+
+    Args:
+        request ([type]): [description]
+
+    Returns:
+        [type]: [description]
     """
     api_key = key.api_key
     api_secret = key.api_secret
     tradetime = {"m": 1, "h": 60, "d": 1440}
-    backtest = False
+    backtest = True
+    code = models.UsingProductCode.objects.last().code
 
     if not models.SignalEvents.objects.exists():
         get_data.Balance(api_key=api_key, api_secret=api_secret).GetExecutions()
@@ -181,11 +196,11 @@ def AutoTrade(request):
             duration = request.POST.get("select_duration")
             usingalgo = models.UsingALgo
             usingalgo(algo=algo, duration=duration).save()
-            A = ai.Trade(api_key=api_key, api_secret=api_secret, backtest=backtest, duration=duration)
+            A = ai.Trade(api_key=api_key, api_secret=api_secret, backtest=backtest, duration=duration, product_code=code)
             try:
                 pertrade = tradetime[duration]
             except KeyError as e:
-                logging.error(e)
+                logger.error(e)
                 pertrade = 60
 
             th = TradeThread(algo_name=algo_name, sleep_time=pertrade, TradeInstance=A)
@@ -212,7 +227,6 @@ def AutoTrade(request):
             })
 
     elif models.UsingALgo.objects.exists():
-        print(isAutoTrade(request)["ALGO"])
         algo = models.UsingALgo.objects.first().algo
         duration = models.UsingALgo.objects.first().duration
 
@@ -230,3 +244,40 @@ def AutoTrade(request):
             "form": algolistsform,
             "durations": ["h", "d", "m"],
         })
+
+
+def Change(request):
+    changeproductcode.change_productcode()
+
+    code = models.UsingProductCode.objects.last().code
+
+    DEma = models.DEmaForm
+    Ema = models.EmaForm
+    Sma = models.SmaForm
+    Bb = models.BbForm
+    Ichimoku = models.IchimokuForm
+    Rsi = models.RsiForm
+    Macd = models.MacdForm
+
+    G = drawgraph.Graph(duration="h", num_data=100, product_code=code)
+
+    kwargs = {"DEma": {"params": (7, 14), "Enable": True},
+              "Ema": {"params": (7, 14), "Enable": True},
+              "Sma": {"params": (7, 14), "Enable": True},
+              "Bb": {"params": (20, 2.0), "Enable": True},
+              "Macd": {"params": (12, 26, 9), "Enable": True},
+              "Rsi": {"params": (6, 30, 70), "Enable": True},
+              "Ichimoku": {"params": (9, 26, 52), "Enable": True}
+              }
+    graph = G.CustomDraw(**kwargs)
+
+    return render(request, "chart/index.html", {
+        "graph": graph,
+        "DEma": DEma,
+        "Ema": Ema,
+        "Sma": Sma,
+        "Bb": Bb,
+        "Ichimoku": Ichimoku,
+        "Rsi": Rsi,
+        "Macd": Macd,
+    })

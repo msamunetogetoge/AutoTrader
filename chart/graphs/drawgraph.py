@@ -20,16 +20,18 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 
 class Graph:
-    def __init__(self, duration="h", num_data=300, backtest=False):
-        self.ticker = get_data.Ticker(key.api_key, key.api_secret)
+    def __init__(self, duration="h", num_data=300, backtest=False, product_code="BTC_JPY"):
+        self.product_code = product_code
+        self.ticker = get_data.Ticker(key.api_key, key.api_secret, code=self.product_code)
         self.duration = duration
         self.backtest = backtest
         if self.backtest is True:
             self.datas = Candle_BackTest
             self.num_data = self.datas.objects.all().count()
         else:
-            self.datas = eval("Candle_1" + duration)
+            self.datas = eval("Candle_1" + duration + self.product_code)
             self.num_data = num_data
+        self.t = ai.Technical(candles=self.datas, product_code=self.product_code)
         self.df = self.MakeDf()
         self.fig = make_subplots(rows=3, shared_xaxes=True, row_heights=[0.6, 0.2, 0.2],
                                  specs=[[{"secondary_y": True}],
@@ -42,7 +44,7 @@ class Graph:
         Returns:
             [type]: [description] pd.DataFrame
         """
-        df = read_frame(self.datas.objects.all().order_by("time"))
+        df = read_frame(self.datas.objects.filter(product_code=self.product_code).all().order_by("time"))
         df = df[["time", 'open', 'high', 'low', 'close', 'volume']]
         df = df.set_index("time")
         df = df[-self.num_data:]
@@ -66,6 +68,7 @@ class Graph:
         self.fig.layout.yaxis2.showgrid = False
         self.fig.update_yaxes(autorange=True, fixedrange=False)
         self.fig.update_layout(autosize=False,
+                               title=self.product_code,
                                width=1000,
                                height=500,
                                margin=dict(
@@ -80,15 +83,8 @@ class Graph:
         self.fig.update_xaxes(rangeslider_thickness=0.03)
         if signalevents is not None:
             # if signalevents is not None,use REAL execution history
-            signalevents = SignalEvents.objects.order_by("time")
-            try:
-                # if df have no items, stop drawing
-                index_first = str(self.df.head(1).index.values[0])[:19]
-            except IndexError as e:
-                logging.error(e)
-                plot_fig = plot(self.fig, output_type='div', include_plotlyjs=False)
-                return plot_fig
-
+            signalevents = SignalEvents.objects.filter(product_code=self.product_code).order_by("time")
+            index_first = str(self.df.head(1).index.values[0])[:19]
             signalevents = signalevents.filter(time__gte=index_first)
             x = list(signalevents.values_list("time", flat=True))
             for i, t in enumerate(x):
@@ -106,7 +102,7 @@ class Graph:
                     size=6,)
                 ), secondary_y=True)
             except Exception as e:
-                logging.info(e)
+                logger.info(e)
                 pass
 
         plot_fig = self.fig.to_html(include_plotlyjs=False)
@@ -120,13 +116,13 @@ class Graph:
             [type] mpf.make_addplot(): [description] Graph of Emas, Ema(args[0])=orange, Ema(args[1])=red.
         """
         if len(args) == 2 and len(self.df) > max(args):
-            t = ai.Technical(candles=self.datas)
-            self.df["sma1"] = t.Sma(timeperiod=args[0])[-self.num_data:]
-            self.df["sma2"] = t.Sma(timeperiod=args[1])[-self.num_data:]
+
+            self.df["sma1"] = self.t.Sma(timeperiod=args[0])[-self.num_data:]
+            self.df["sma2"] = self.t.Sma(timeperiod=args[1])[-self.num_data:]
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["sma1"], name=f"sma({args[0]})", line=dict(color='darkorange', width=1), visible='legendonly'), secondary_y=True)
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["sma2"], name=f"sma({args[1]})", line=dict(color='tomato', width=1), visible='legendonly'), secondary_y=True)
         else:
-            print("args=(period1, period2) where periods are int.")
+            print("draw Sma:args=(period1, period2) or database length have some issue")
             return None
 
     def AddEma(self, *args):
@@ -137,13 +133,12 @@ class Graph:
             [type] mpf.make_addplot(): [description] Graph of Emas, Ema(args[0])=orange, Ema(args[1])=red.
         """
         if len(args) == 2 and len(self.df) > max(args):
-            t = ai.Technical(candles=self.datas)
-            self.df["ema1"] = t.Ema(timeperiod=args[0])[-self.num_data:]
-            self.df["ema2"] = t.Ema(timeperiod=args[1])[-self.num_data:]
+            self.df["ema1"] = self.t.Ema(timeperiod=args[0])[-self.num_data:]
+            self.df["ema2"] = self.t.Ema(timeperiod=args[1])[-self.num_data:]
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["ema1"], name=f"ema({args[0]})", line=dict(color='orange', width=1), visible='legendonly'), secondary_y=True)
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["ema2"], name=f"ema({args[1]})", line=dict(color='red', width=1), visible='legendonly'), secondary_y=True)
         else:
-            print("args=(period1, period2) where periods are int.")
+            print("draw Ema:args=(period1, period2) or database length have some issue")
             return None
 
     def AddDEma(self, *args):
@@ -154,9 +149,8 @@ class Graph:
             [type] mpf.make_addplot(): [description] Graph of DEmas, DEma(args[0])=orange, DEma(args[1])=red.
         """
         if len(args) == 2 and len(self.df) > max(args):
-            t = ai.Technical(candles=self.datas)
-            self.df["dema1"] = t.DEma(timeperiod=args[0])[-self.num_data:]
-            self.df["dema2"] = t.DEma(timeperiod=args[1])[-self.num_data:]
+            self.df["dema1"] = self.t.DEma(timeperiod=args[0])[-self.num_data:]
+            self.df["dema2"] = self.t.DEma(timeperiod=args[1])[-self.num_data:]
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["dema1"], name=f"dema({args[0]})", line=dict(color='orange', width=1), visible='legendonly'), secondary_y=True)
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["dema2"], name=f"dema({args[1]})", line=dict(color='red', width=1), visible='legendonly'), secondary_y=True)
         else:
@@ -171,8 +165,7 @@ class Graph:
             [type] mpf.make_addplot(): [description] Graph of BBands, bands =blue
         """
         if len(args) == 2 and len(self.df) > max(args):
-            t = ai.Technical(candles=self.datas)
-            u, _, l = t.Bbands(args[0], args[1])
+            u, _, l = self.t.Bbands(args[0], args[1])
             self.df["upperband"], self.df["lowerband"] = u[-self.num_data:], l[-self.num_data:]
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["upperband"], mode="lines", name="upperband", line=dict(color='blue', width=1), visible='legendonly'), secondary_y=True)
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["lowerband"], mode="lines", name="lowerband", line=dict(color='blue', width=1), visible='legendonly'), secondary_y=True)
@@ -189,8 +182,7 @@ class Graph:
                 [type] mpf.make_addplot(): [description] Graph of Macd, macd = orange, macdsignal = red, macdhist = skyblue.
         """
         if len(args) == 3 and len(self.df) > max(args):
-            t = ai.Technical(candles=self.datas)
-            macd, macdsignal, macdhist = t.Macd(args[0], args[1], args[2])
+            macd, macdsignal, macdhist = self.t.Macd(args[0], args[1], args[2])
             self.df["macd"], self.df["macdsignal"], self.df["macdhist"] = macd[-self.num_data:], macdsignal[-self.num_data:], macdhist[-self.num_data:]
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["macd"], mode="lines", name="macd", line=dict(color='orange', width=1)), row=2, col=1)
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["macdsignal"], mode="lines", name="macd", line=dict(color='red', width=1)), row=2, col=1)
@@ -208,18 +200,12 @@ class Graph:
                 [type] mpf.make_addplot(): [description] Graph of Rsi
         """
         if len(args) == 3 and len(self.df) > max(args):
-            t = ai.Technical(candles=self.datas)
-            self.df["rsi"] = t.Rsi(args[0])[-self.num_data:]
+            self.df["rsi"] = self.t.Rsi(args[0])[-self.num_data:]
             self.df["buythread"] = np.array([30.0] * len(self.df)).reshape(-1,)
             self.df["sellthread"] = np.array([70.0] * len(self.df)).reshape(-1,)
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["rsi"], mode="lines", name="rsi", line=dict(color='orange', width=2)), row=3, col=1)
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["buythread"], mode="lines", name="buythread", line=dict(color='black', width=1, dash="dot")), row=3, col=1)
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["sellthread"], mode="lines", name="sellthread", line=dict(color='black', width=1, dash="dot")), row=3, col=1)
-            # apdict1 = mpf.make_addplot(self.df["rsi"], panel=3, color="orange")
-            # apdict2 = mpf.make_addplot(self.df["buythread"], panel=3, color="black")
-            # apdict3 = mpf.make_addplot(self.df["sellthread"], panel=3, color="black")
-            # apdict = [apdict1, apdict2, apdict3]
-            # return apdict
         else:
             print("draw Rsi:args=(timeperiod, buythread, sellthread ) or database length have some issue")
             return None
@@ -233,8 +219,7 @@ class Graph:
                 [type] mpf.make_addplot(): [description] Graph of Ichimoku, tenkansen = orange, kijunsen = red, senkou =black, chikou=pink
         """
         if len(args) == 3 and len(self.df) > max(args):
-            t = ai.Technical(candles=self.datas)
-            t, k, s_A, s_B, c = t.Ichimoku(args[0], args[1], args[2])
+            t, k, s_A, s_B, c = self.t.Ichimoku(args[0], args[1], args[2])
             self.df["tenkan"], self.df["kijun"], self.df["senkouA"], self.df["senkouB"], self.df["chikou"] = t[-self.num_data:], k[-self.num_data:], s_A[-self.num_data:], s_B[-self.num_data:], c[-self.num_data:]
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["tenkan"], mode="lines", name="tenkan", line=dict(color='orange', width=1), visible='legendonly'), secondary_y=True)
             self.fig.add_trace(go.Scatter(x=self.df.index, y=self.df["kijun"], mode="lines", name="kijun", line=dict(color='red', width=1), visible='legendonly'), secondary_y=True)
@@ -274,7 +259,7 @@ class Graph:
             try:
                 add = eval("self.Add" + indicator + f"(*{params})")
             except AttributeError as e:
-                logging.error(e)
+                logger.error(e)
                 pass
             finally:
                 x = list(BackTestSignalEvents.objects.values_list("time", flat=True))
@@ -288,7 +273,7 @@ class Graph:
                     color='maroon',
                     size=10,)
                 ), secondary_y=True)
-            self.fig.update_layout(title=f"Backtest:{indicator},params={params},performance={performance}")
+                self.fig.update_layout(title=f"Backtest:{indicator},params={params},performance={performance}")
 
         plot_fig = self.DrawCandleStick(signalevents=None)
 

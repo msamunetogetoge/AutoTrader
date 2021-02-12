@@ -24,7 +24,14 @@ class BackTestSignalEvents(models.Model):
         return f"{self.time}:{self.product_code}:{self.side}:price={self.price}"
 
 
-class Candle_1s(models.Model):
+class UsingProductCode(models.Model):
+    code = models.CharField(default="BTC_JPY", max_length=15)
+
+    def __str__(self):
+        return f"using code = {self.code}"
+
+
+class Candle_1sBTC_JPY(models.Model):
     time = models.DateTimeField(primary_key=True)
     product_code = models.CharField(default="BTC_JPY", max_length=15)
     open = models.FloatField()
@@ -37,7 +44,7 @@ class Candle_1s(models.Model):
         return f"duration=s,{self.time} {self.product_code} open={self.open} close={self.close} volume={self.volume}"
 
 
-class Candle_1m(models.Model):
+class Candle_1mBTC_JPY(models.Model):
     time = models.DateTimeField(primary_key=True)
     product_code = models.CharField(default="BTC_JPY", max_length=15)
     open = models.FloatField()
@@ -50,7 +57,7 @@ class Candle_1m(models.Model):
         return f"duration=m,{self.time} {self.product_code} open={self.open} close={self.close} volume={self.volume}"
 
 
-class Candle_1h(models.Model):
+class Candle_1hBTC_JPY(models.Model):
     time = models.DateTimeField(primary_key=True)
     product_code = models.CharField(default="BTC_JPY", max_length=15)
     open = models.FloatField()
@@ -63,9 +70,61 @@ class Candle_1h(models.Model):
         return f"duration=h,{self.time} {self.product_code} open={self.open} close={self.close} volume={self.volume}"
 
 
-class Candle_1d(models.Model):
+class Candle_1dBTC_JPY(models.Model):
     time = models.DateTimeField(primary_key=True)
     product_code = models.CharField(default="BTC_JPY", max_length=15)
+    open = models.FloatField()
+    close = models.FloatField()
+    high = models.FloatField()
+    low = models.FloatField()
+    volume = models.FloatField()
+
+    def __str__(self):
+        return f"duration=d,{self.time} {self.product_code} open={self.open} close={self.close} volume={self.volume}"
+
+
+class Candle_1sETH_JPY(models.Model):
+    time = models.DateTimeField(primary_key=True)
+    product_code = models.CharField(default="ETH_JPY", max_length=15)
+    open = models.FloatField()
+    close = models.FloatField()
+    high = models.FloatField()
+    low = models.FloatField()
+    volume = models.FloatField()
+
+    def __str__(self):
+        return f"duration=s,{self.time} {self.product_code} open={self.open} close={self.close} volume={self.volume}"
+
+
+class Candle_1mETH_JPY(models.Model):
+    time = models.DateTimeField(primary_key=True)
+    product_code = models.CharField(default="ETH_JPY", max_length=15)
+    open = models.FloatField()
+    close = models.FloatField()
+    high = models.FloatField()
+    low = models.FloatField()
+    volume = models.FloatField()
+
+    def __str__(self):
+        return f"duration=m,{self.time} {self.product_code} open={self.open} close={self.close} volume={self.volume}"
+
+
+class Candle_1hETH_JPY(models.Model):
+    time = models.DateTimeField(primary_key=True)
+    product_code = models.CharField(default="ETH_JPY", max_length=15)
+    open = models.FloatField()
+    close = models.FloatField()
+    high = models.FloatField()
+    low = models.FloatField()
+    volume = models.FloatField()
+
+    def __str__(self):
+        return f"duration=h,{self.time} {self.product_code} open={self.open} close={self.close} volume={self.volume}"
+
+
+class Candle_1dETH_JPY(models.Model):
+    time = models.DateTimeField(primary_key=True)
+    product_code = models.CharField(default="ETH_JPY", max_length=15)
     open = models.FloatField()
     close = models.FloatField()
     high = models.FloatField()

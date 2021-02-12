@@ -18,5 +18,6 @@ urlpatterns = [
     path("trade", views.Trade, name="trade"),
     path("trade/<str:duration>/", views.Trade, name="trade_d"),
     path("autotrade", views.AutoTrade, name="autotrade"),
+    path("change", views.Change, name="change"),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
