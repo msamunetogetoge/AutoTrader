@@ -16,15 +16,16 @@ logger = logging.getLogger(__name__)
 
 
 class Technical:
-    def __init__(self, candles):
-        """[summary]generate dict, np.array data from django.db.models(Candle_1s, Candle_1m, Candle_1h)
+    def __init__(self, candles, product_code):
+        """[summary]generate dict, np.array data from django.db.models(Candle_1sproduct_code, Candle_1mproduct_code, Candle_1hproduct_code)
 
         Args:
             candles ([type] django.db.models ): [description] chart.models のmodels.
             self.candle_dict:辞書形式のcandle
             self.close:np.[type]:array, [shape] (len(self.candles), )
         """
-        self.candles = list(candles.objects.order_by("time"))
+        self.product_code = product_code
+        self.candles = list(candles.objects.filter(product_code=self.product_code).order_by("time"))
         self.candle_dict = self.Model2Dict()
         self.close = np.array(self.candle_dict["close"]).reshape(-1,)
 
@@ -326,8 +327,8 @@ class BackTest(Recognize, Technical):
         Technical ([type]class): [description] Technical指標をまとめたクラス。
     """
 
-    def __init__(self, candles):
-        super().__init__(candles=candles)
+    def __init__(self, candles, product_code):
+        super().__init__(candles=candles, product_code=product_code)
         self.len_candles = len(self.candles)
 
     def SaveSignalEvents(self, i, side):
@@ -481,8 +482,8 @@ class Optimize(BackTest):
         candles ([type] django.db.models ): [description] chart.models のmodels object.
     """
 
-    def __init__(self, candles):
-        super().__init__(candles=candles)
+    def __init__(self, candles, product_code):
+        super().__init__(candles=candles, product_code=product_code)
 
     def Profit(self, events, size=1.0):
         """[summary] calculating profit of Trading. Trading is based on self.candles and events
@@ -682,35 +683,38 @@ class Trade(Optimize):
         self.product_code = product_code
         self.duration = duration
         self.candles = get_data.Candle(self.api_key, self.api_secret, code=self.product_code).GetAllCandle(duration=self.duration)
-        super().__init__(candles=self.candles)
+        super().__init__(candles=self.candles, product_code=self.product_code)
         self.b = get_data.Balance(self.api_key, self.api_secret, code=self.product_code)
-        self.order = order.BitFlayer_Order(self.api_key, self.api_secret)
+        self.order = order.BitFlayer_Order(self.api_key, self.api_secret, product_code=self.product_code)
         self.availavlecurrency = self.order.AvailableBalance()["JPY"]
         self.availavlesize = self.order.AvailableBalance()[self.product_code]
         self.stoplimitpercent = stoplimitpercent
         self.stoplimit = 0.0
         self.b.GetExecutions()
         self.bestparams = None
+        self.latest_close = 0
+        self.before_close = 0
 
     def GetClose(self):
-        """[summary]Get Close data. If this function called, get new candle.
+        """[summary]Get Close data. If this function called, get new candle and signalevents by super().__init__().
         """
         self.candles = get_data.Candle(self.api_key, self.api_secret, code=self.product_code).GetAllCandle(duration=self.duration)
-        super().__init__(candles=self.candles)
-        signalevent = SignalEvents.objects.last()
+        super().__init__(candles=self.candles, product_code=self.product_code)
+        self.b.GetExecutions()
+        signalevent = SignalEvents.objects.filter(product_code=self.product_code).last()
         signaltime = signalevent.time
         self.now_position = signalevent.side
         self.price = signalevent.price
         candles = self.candle_dict
-        self.latest_close = candles["close"][-1]
-        self.before_close = candles["close"][-2]
+        if len(candles["close"]) > 2:
+            self.latest_close = candles["close"][-1]
+            self.before_close = candles["close"][-2]
         print(f"now_position={signaltime, self.now_position, self.price},latest_close ={self.latest_close}, before_close={self.before_close} ")
 
-    def SendOrders(self, SELLSIGNAL, BUYSIGNAL):
-        """[summary]現在の足の終値が前の足の終値を下回って、現在の保有ポジションの総損益が損失になったときは成り行き注文でドテン売りする、または保有しているポジションがないときは成り行き注文で売る。
-            買いポジションを取るときはこの逆。
+    def SendOrders(self, SELLSIGNAL: bool, BUYSIGNAL: bool):
+        """[summary]
         """
-        logging.info(f"available curenncy={self.availavlecurrency}, available BTC={self.availavlesize}")
+        logger.info(f"available curenncy={self.availavlecurrency}, available BTC={self.availavlesize}")
         self.GetClose()
         self.stoplimit = self.price * self.stoplimitpercent
         # SELL SIGNAL
@@ -722,7 +726,7 @@ class Trade(Optimize):
                 sell_code = self.order.SELL(size=self.availavlesize)
 
                 if sell_code is None:
-                    logging.error("Cant SELL")
+                    logger.error("Cant SELL")
                 else:
                     self.stoplimit = 0
                     logger.info(f"{datetime.datetime.now()}:SELL Trade Occured ID ={sell_code['child_order_acceptance_id']}")
@@ -732,16 +736,16 @@ class Trade(Optimize):
                 print(f"BACKTEST BUY Trade Occur!, potision={self.price}, close={self.latest_close}")
 
             else:
-                buy_code = self.order.BUY(currency=self.availavlecurrency)
+                buy_code = self.order.BUY(currency=self.availavlecurrency, use_parcent=0.95)
 
                 if buy_code is None:
-                    logging.error("Cant BUY")
+                    logger.error("Cant BUY")
                 else:
                     self.stoplimit = self.close[-1] * self.stoplimitpercent
                     logger.info(f"{datetime.datetime.now()}:BUY Trade Occured ID ={buy_code['child_order_acceptance_id']},size={self.availavlesize}")
         else:
             print(f"{datetime.datetime.now()} No Trade")
-            logging.info("No Trade Occured")
+            logger.info("No Trade Occured")
 
     def BbAlgo(self):
         """[summary]現在の足の終値が,lowerbandを上に突き抜け、かつ、現在の終値がN/2 期で最大なら買う。売りは逆。
@@ -756,7 +760,7 @@ class Trade(Optimize):
             bestparams = self.bestparams
 
         len_candles = self.len_candles - 1
-        upperband, _, lowerband = self.Bbands(N, k)
+        upperband, _, lowerband = self.Bbands(bestN, bestk)
         sellsignal = self.RBb(bbUp=upperband, bbDown=lowerband, close=self.close, n=N, i=len_candles) == "SELL"
         buysignal = self.RBb(bbUp=upperband, bbDown=lowerband, close=self.close, n=N, i=len_candles) == "BUY"
         return bestparams, sellsignal, buysignal
@@ -789,7 +793,7 @@ class Trade(Optimize):
         Ema2 = self.Ema(Emaperiod2)
         sellsignal = self.REma(Ema1, Ema2, self.close, i=len_candles) == "SELL" or min(self.latest_close, self.price) < self.before_close
         buysignal = self.REma(Ema1, Ema2, self.close, i=len_candles) == "BUY"
-        logging.info(f"Optimized Ema params={Emaperiod1, Emaperiod2}")
+        logger.info(f"Optimized Ema params={Emaperiod1, Emaperiod2}")
         print(f"Optimized Ema params={Emaperiod1, Emaperiod2}")
         return best_periods, sellsignal, buysignal
 
