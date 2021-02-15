@@ -8,6 +8,9 @@ import pybitflyer
 import key
 
 from chart.models import *
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Ticker():
@@ -39,9 +42,12 @@ class Ticker():
             return date
 
         elif isinstance(time, datetime.datetime):
-            date = time
+            timeformat = "%Y-%m-%dT%H:%M:%S"
+            date = datetime.datetime.strptime(
+                time.strftime(timeformat), timeformat)
+            # date = time
         else:
-            print("time is str or datetime.datetime ")
+            print("time type is must be str or datetime.datetime ")
 
         return date
 
@@ -69,7 +75,13 @@ class Ticker():
             date = datetime.datetime.strptime(
                 date.strftime(timeformat), timeformat)
         elif duration == "s":
-            date = date
+            timeformat = "%Y-%m-%dT%H:%M:%S"
+            date = datetime.datetime.strptime(
+                date.strftime(timeformat), timeformat)
+        elif duration == "d":
+            timeformat = "%Y-%m-%d"
+            date = datetime.datetime.strptime(
+                date.strftime(timeformat), timeformat)
         return date
 
     def GetMidPrice(self):
@@ -96,10 +108,11 @@ class Candle(Ticker):
             candle (class 'chart.models.Candle_1duration' の要素): 1duration = 1s,1m,1h
         """
         c = candle
-        tablename = "Candle_1" + duration
+        tablename = "Candle_1" + duration + self.product_code
         model = tablename
         cdl = eval(model)(
             time=c.time,
+            product_code=self.product_code,
             open=c.open,
             close=c.close,
             high=c.high,
@@ -109,7 +122,7 @@ class Candle(Ticker):
 
     def IsExistCandle(self, duration, time):
         date = self.TruncateDateTime(duration=duration, time=time)
-        tablename = "Candle_1" + duration
+        tablename = "Candle_1" + duration + self.product_code
         candle = eval(tablename)(time=date)
         if candle.volume is None:
             return False
@@ -127,13 +140,14 @@ class Candle(Ticker):
         Returns:
             [type]chart.models.Candle_1s, 1m, 1h: [description] data which is time = self.ticker['timestamp']
         """
-        model = "Candle_1" + duration
+        model = "Candle_1" + duration + self.product_code
         candle = eval(model)
         date = self.TruncateDateTime(duration=duration, time=time)
-        if not candle.objects.filter(time=date).exists():
+        if not candle.objects.filter(time=date, product_code=self.product_code).exists():
             price = self.GetMidPrice()
             candle = candle(
                 time=date,
+                product_code=self.product_code,
                 open=price,
                 close=price,
                 high=price,
@@ -142,7 +156,14 @@ class Candle(Ticker):
             candle.save()
             return candle
         else:
-            return candle.objects.filter(time=date).first()
+            try:
+                c = candle.objects.get(time=date, product_code=self.product_code)
+            except Exception as e:
+                logger.error(e)
+                print("models.get method is failed.")
+                c = candle.objects.filter(time=date, product_code=self.product_code).first()
+
+            return c
 
     def GetAllCandle(self, duration):
         """[summary]Get django.db.models object from duration. if duration='s', this funcution returns chart.models.Candle_1s.
@@ -152,7 +173,7 @@ class Candle(Ticker):
         Returns:
             [type]: [description] django.db.models from chart.models
         """
-        model = "Candle_1" + duration
+        model = "Candle_1" + duration + self.product_code
         model = eval(model)
         return model
 
@@ -194,10 +215,11 @@ class Balance():
         return balance_dict
 
     def GetExecutions(self):
-        executions = self.api.getchildorders(product_code="BTC_JPY", child_order_state="COMPLETED")
+        executions = self.api.getchildorders(product_code=self.product_code, child_order_state="COMPLETED")
         for ex in executions:
             se = SignalEvents()
             se.price = ex["average_price"]
+            se.product_code = self.product_code
             se.side = ex["side"]
             se.size = ex["size"]
             se.time = ex["child_order_date"]

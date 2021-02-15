@@ -2,6 +2,7 @@ from django.test import TestCase
 
 from chart.models import *
 from chart.controllers import ai, get_data
+from chart.graphs import drawgraph
 
 import key
 from utils import createdf
@@ -176,7 +177,7 @@ class TechnicalTests(TestCase):
 
 
 class BackTestTests(TestCase):
-    """[summary]BackTestTest : noevents → returns dict{'index':[], 'order':[]}. order is 'Sell' or 'Buy'.
+    """[summary]BackTestTest : noevents → returns dict{'index':[], 'order':[]}. order is 'SELL' or 'BUY'.
                 QoptimizeTest: performance is lager than 0.
 
     Args:
@@ -193,12 +194,12 @@ class BackTestTests(TestCase):
         self.assertIs(b.len_candles, length)
 
     def test_AddEvents(self):
-        """[summary]Test AddEvents function. It saves events like buy, sell, buy,... and sell, buy, sell, ... .
+        """[summary]Test AddEvents function. It saves events like BUY, SELL, BUY,... and SELL, BUY, SELL, ... .
         """
         createdf.connectandsave(num_data=100)
         b = ai.BackTest(eval("Candle_1h"))
         self.assertEqual(BackTestSignalEvents.objects.exists(), False)
-        # testing buy, sell,buy patern
+        # testing BUY, SELL,BUY patern
         event1 = {"index": [], "order": []}
         r1 = "BUY"
         i1 = 10
@@ -221,7 +222,7 @@ class BackTestTests(TestCase):
         self.assertEqual(signalevent3.side, "SELL")
 
         BackTestSignalEvents.objects.all().delete()
-        # testing sell, buy, sell patern
+        # testing SELL, BUY, SELL patern
         event1 = {"index": [], "order": []}
         r1 = "SELL"
         i1 = 10
@@ -293,7 +294,7 @@ class BackTestTests(TestCase):
 
     def test_BackTestSma(self):
         createdf.connectandsave()
-        orders = ["", "Sell", "Buy"]
+        orders = ["", "SELL", "BUY"]
         b = ai.BackTest(eval("Candle_1h"))
         period1 = 7
         period2 = 14
@@ -315,7 +316,7 @@ class BackTestTests(TestCase):
 
     def test_BackTestBb(self):
         createdf.connectandsave()
-        orders = ["", "Sell", "Buy"]
+        orders = ["", "SELL", "BUY"]
         b = ai.BackTest(eval("Candle_1h"))
         n = 14
         k = 2
@@ -337,7 +338,7 @@ class BackTestTests(TestCase):
 
     def test_BackTestIchimoku(self):
         createdf.connectandsave()
-        orders = ["", "Sell", "Buy"]
+        orders = ["", "SELL", "BUY"]
         b = ai.BackTest(eval("Candle_1h"))
         t, k, s = 9, 26, 52
         events = b.BackTestIchimoku(t, k, s)
@@ -352,7 +353,7 @@ class BackTestTests(TestCase):
 
     def test_BackTestMacd(self):
         createdf.connectandsave()
-        orders = ["", "Sell", "Buy"]
+        orders = ["", "SELL", "BUY"]
         b = ai.BackTest(eval("Candle_1h"))
         fastperiod = 12
         slowperiod = 26
@@ -375,12 +376,12 @@ class BackTestTests(TestCase):
 
     def test_BsckTestRsi(self):
         createdf.connectandsave()
-        orders = ["", "Sell", "Buy"]
+        orders = ["", "SELL", "BUY"]
         b = ai.BackTest(eval("Candle_1h"))
         period = 14
-        buyThread = 70
-        sellThread = 30
-        events = b.BackTestRsi(period, buyThread, sellThread)
+        BUYThread = 70
+        SELLThread = 30
+        events = b.BackTestRsi(period, BUYThread, SELLThread)
         length = len(events["index"])
         print(f"Rsi events{events}")
         if length == 0:
@@ -390,10 +391,59 @@ class BackTestTests(TestCase):
                 self.assertEqual(events["order"][i] in orders, True)
                 self.assertEqual(events["index"][i] < b.len_candles, True)
 
-    def test_OptimizeRdi(self):
+    def test_OptimizeRsi(self):
         createdf.connectandsave()
         opt = ai.Optimize(eval("Candle_1h"))
-        events, performance, bestperiod, bestBuyThread, bestSellThreadd = opt.OptimizeRsi()
+        events, performance, bestperiod, bestBUYThread, bestSELLThreadd = opt.OptimizeRsi()
+        self.assertEqual(performance >= 0, True)
+
+    def test_BackTestReTrend(self):
+        """[summary] Testing Trade with only backetest.
+        """
+        createdf.connectandsave(num_data=300)
+        orders = ["", "SELL", "BUY"]
+        b = ai.BackTest(eval("Candle_1h"))
+        events = b.BackTestReTrend()
+        length = len(events["index"])
+        print(events)
+        if length == 0:
+            self.assertEqual(events["order"], [])
+        else:
+            for i in range(length):
+                self.assertEqual(events["order"][i] in orders, True)
+                self.assertEqual(events["index"][i] < b.len_candles, True)
+
+    def test_OptimizeReTrend(self):
+        createdf.connectandsave(num_data=300)
+        opt = ai.Optimize(eval("Candle_1h"))
+        events, performance = opt.OptimizeReTrend()
+        print(f"Profit= {performance}")
+        self.assertEqual(performance >= 0, True)
+        g = drawgraph.Graph(backtest=True)
+        g.DrawCandleStickWithOptimizedEvents(indicator="ReTrend")
+
+    def test_BackTestTripleIndex(self):
+        """[summary] Testing Trade with only backetest.
+        """
+        createdf.connectandsave(num_data=300)
+        orders = ["", "SELL", "BUY"]
+        b = ai.BackTest(eval("Candle_1h"))
+        events = b.BackTestTripleIndex()
+        length = len(events["index"])
+        print(events)
+        if length == 0:
+            self.assertEqual(events["order"], [])
+        else:
+            for i in range(length):
+                self.assertEqual(events["order"][i] in orders, True)
+                self.assertEqual(events["index"][i] < b.len_candles, True)
+
+    def test_OptimizeTripleIndex(self):
+        createdf.connectandsave(num_data=300)
+        opt = ai.Optimize(eval("Candle_1h"))
+        events, performance = opt.OptimizeTripleIndex()
+        print(f"Events= {events}")
+        print(f"Profit= {performance}")
         self.assertEqual(performance >= 0, True)
 
     def test_OptimizeParams(self):

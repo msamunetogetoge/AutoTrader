@@ -18,16 +18,13 @@ class BitFlayer_Order():
         self.api = pybitflyer.API(api_key, api_secret)
         self.product_code = product_code
 
-    def AvailableBalance(self, tax=0.001):
-        """[summary]
-
-        Args:
-            tax (float, optional): [description]手数料をいれる. Defaults to 0.001.
+    def AvailableBalance(self):
+        """[summary]get available balance from bitflyerapi.
 
         Returns:
             [type] dict : [description] like {"JPY": 50000, "BTC_JPY": 0.05} dict.
         """
-        b = get_data.Balance(self.api_key, self.api_secret)
+        b = get_data.Balance(self.api_key, self.api_secret, code=self.product_code)
         balance_code = self.product_code.split("_")[0]
         balance = b.GetBalance()
 
@@ -42,7 +39,6 @@ class BitFlayer_Order():
 
         Args:
             size (float, optional): [description]. Defaults to 0.00000001.
-            tax (float, optional): [description]. Defaults to 0.001.
 
         Returns:
             [type]float : [description] 1 satoshi 刻み
@@ -53,26 +49,25 @@ class BitFlayer_Order():
         size = int(size * 100000000) / 100000000
         return size
 
-    def BUY(self, currency, use_parcent=0.9, code="BTC_JPY"):
+    def BUY(self, currency, use_parcent=0.9):
         """[summary] 買いたい額を円で指定して、bitflyer から成り行き注文を行う。
         売買が成立するとIDを返し、失敗するとNone を返す。
 
         Args:
             currency ([type]): [description]
             use_parcent (float, optional): [description]. Defaults to 0.9.
-            code (str, optional): [description]. Defaults to "BTC_JPY".
 
         Returns:
             [type]dict : [description]  like{child_order_acceptance_id:xxxxxxxx} or None
         """
-        ticker = get_data.Ticker(self.api_key, self.api_secret).ticker
+        ticker = get_data.Ticker(self.api_key, self.api_secret, self.product_code).ticker
         price = ticker["best_ask"]
         usecurrency = currency * use_parcent
         size = 1 / (price / usecurrency)
         size = self.AdjustSize(size=size)
         size = int(size * 100000000) / 100000000
         buy_code = self.api.sendchildorder(
-            product_code=code,
+            product_code=self.product_code,
             child_order_type="MARKET",
             side="BUY", size=size,
             minute_to_expire=10,
@@ -84,7 +79,7 @@ class BitFlayer_Order():
             print("Cant BUY")
             return None
 
-    def SELL(self, code="BTC_JPY", size=0.00000001):
+    def SELL(self, size=0.00000001):
         """[summary] 売りたい量のbitcoinをbitcoinの枚数で指定して、bitflyer から成り行き注文を行う。
         売買が成立するとIDを返し、失敗するとNone を返す。
 
@@ -99,7 +94,7 @@ class BitFlayer_Order():
         size = self.AdjustSize(size=size)
         size = int(size * 100000000) / 100000000
         sell_code = self.api.sendchildorder(
-            product_code=code,
+            product_code=self.product_code,
             child_order_type="MARKET",
             side="SELL", size=size,
             minute_to_expire=10,

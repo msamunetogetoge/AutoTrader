@@ -18,12 +18,14 @@ class Command(BaseCommand):
         print("Start GetCandles")
         api_key = key.api_key
         api_secret = key.api_secret
-        durations = ["s", "m", "h"]
+        durations = ["s", "m", "h", "d"]
         while True:
-            cdl = get_data.Candle(api_key=api_key, api_secret=api_secret)
-            for duration in durations:
-                cdl.CreateCandleWithDuration(duration=duration)
-                model = eval("Candle_1" + duration)
-                ticker = model.objects.last()
-                print(f"CreateCandleWithDuration:{ticker}")
-            time.sleep(5)
+            for product_code in ["BTC_JPY","ETH_JPY"]:
+                cdl = get_data.Candle(api_key=api_key, api_secret=api_secret, code=product_code)
+                for duration in durations:
+                    cdl.CreateCandleWithDuration(duration=duration)
+                    model = eval("Candle_1" + duration + product_code)
+                    ticker = model.objects.filter(product_code=product_code).last()
+
+                    print(f"CreateCandleWithDuration:{ticker}")
+            time.sleep(11)

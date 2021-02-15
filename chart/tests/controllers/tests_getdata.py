@@ -21,6 +21,9 @@ class TickerTest(TestCase):
     """
 
     def test_GetTicker(self):
+        """[summary] testing Ticker.GetTicker. this function returns
+        'product_code', 'state', 'timestamp', 'tick_id', 'best_bid', 'best_ask', 'best_bid_size', 'best_ask_size', 'total_bid_depth', 'total_ask_depth', 'market_bid_size', 'market_ask_size', 'ltp', 'volume', 'volume_by_product'
+        """
         api_key = key.api_key
         api_secret = key.api_secret
         t = get_data.Ticker(api_key, api_secret)
@@ -29,39 +32,50 @@ class TickerTest(TestCase):
         self.assertEqual(list(ticker.keys()), ticker_info)
 
     def test_Datetime_timeNone(self):
+        """[summary] testing Ticker.TruncateDatetime(time). if time=None, get latest time of ticker, and convert format to "%Y-%m-%dT%H:%M:%S" etc.
+        """
         api_key = key.api_key
         api_secret = key.api_secret
         t = get_data.Ticker(api_key, api_secret)
         date = t.DateTime()
 
-        durations = ["h", "m", "s"]
+        durations = ["d", "h", "m", "s"]
+        d = datetime.datetime(date.year, date.month, date.day)
         h = datetime.datetime(date.year, date.month, date.day, date.hour)
         m = datetime.datetime(date.year, date.month, date.day, date.hour, date.minute)
         s = datetime.datetime(date.year, date.month, date.day, date.hour, date.minute, date.second)
 
+        date_d = t.TruncateDateTime("d")
         date_h = t.TruncateDateTime("h")
         date_m = t.TruncateDateTime("m")
         date_s = t.TruncateDateTime("s")
+        print(f"Not Truncated datetime is {date}")
         for duration in durations:
+            print(f"Truncated datetime with duration {duration} is", eval("date_" + duration))
             self.assertEqual(eval(duration), eval("date_" + duration))
 
-        def test_Datetime_timeNotNone(self):
-            api_key = key.api_key
-            api_secret = key.api_secret
-            t = get_data.Ticker(api_key, api_secret)
-            time_now = datetime.datetime.now()
-            date = t.DateTime(time=time_now)
+    def test_Datetime_timeNotNone(self):
+        """[summary] testing Ticker.TruncateDatetime(time). if time is not None, convert time to datetime.datetime object and change format to "%Y-%m-%dT%H:%M:%S" etc.
+        """
+        api_key = key.api_key
+        api_secret = key.api_secret
+        t = get_data.Ticker(api_key, api_secret)
+        time_now = datetime.datetime.now()
+        date = t.DateTime(time=time_now)
 
-            durations = ["h", "m", "s"]
-            h = datetime.datetime(date.year, date.month, date.day, date.hour)
-            m = datetime.datetime(date.year, date.month, date.day, date.hour, date.minute)
-            s = datetime.datetime(date.year, date.month, date.day, date.hour, date.minute, date.second)
+        durations = ["d", "h", "m", "s"]
+        d = datetime.datetime(date.year, date.month, date.day)
+        h = datetime.datetime(date.year, date.month, date.day, date.hour)
+        m = datetime.datetime(date.year, date.month, date.day, date.hour, date.minute)
+        s = datetime.datetime(date.year, date.month, date.day, date.hour, date.minute, date.second)
 
-            date_h = t.TruncateDateTime(duration="h", time=time_now)
-            date_m = t.TruncateDateTime(duration="m", time=time_now)
-            date_s = t.TruncateDateTime(duration="s", time=time_now)
-            for duration in durations:
-                self.assertEqual(eval(duration), eval("date_" + duration))
+        date_d = t.TruncateDateTime("d", time=time_now)
+        date_h = t.TruncateDateTime(duration="h", time=time_now)
+        date_m = t.TruncateDateTime(duration="m", time=time_now)
+        date_s = t.TruncateDateTime(duration="s", time=time_now)
+        for duration in durations:
+            print(f"Truncated datetime with duration {duration} is", eval("date_" + duration))
+            self.assertEqual(eval(duration), eval("date_" + duration))
 
     def test_GetMidPrice(self):
         api_key = key.api_key

@@ -11,7 +11,8 @@ bitcoin
         <div class="col align-self-center">
             {% if usealgo %}
             現在のアルゴリズム<br>
-            {{ usealgo }}<br>
+            {{ usealgo }} <br>
+            duration = {{duration}}<br>
             <form action="{% url 'autotrade' %}" method="POST">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-primary" name="stop_algo" value="OFF">Stop or Change Algo</button>
@@ -25,6 +26,12 @@ bitcoin
                     <option selected value="none">Select Algo</option>
                     {% for algolist in algolists %}
                     <option value="{{ algolist.algo }}" name="selectalgo">{{algolist}}</option>
+                    {% endfor %}
+                </select>
+                <select class="custom-select" id="select_duration" name="select_duration">
+                    <option selected value="none">Select Duration</option>
+                    {% for duration in durations %}
+                    <option value="{{ duration }}" name="selectduration">{{duration}}</option>
                     {% endfor %}
                 </select>
                 <button type="submit" id="submitbtn" class="btn btn-primary" disabled>選択</button>
@@ -83,9 +90,10 @@ bitcoin
     }
     document.addEventListener('DOMContentLoaded', function () {
         var algo = document.querySelector('#select_algo');
+        var duration = document.querySelector('#select_duration');
         const submit = document.querySelector('#submitbtn');
         algo.onchange = function () {
-            if (algo.value == "none") {
+            if (algo.value == "none" || duration.value == "none") {
                 submit.disabled = true;
             } else {
                 submit.disabled = false;
