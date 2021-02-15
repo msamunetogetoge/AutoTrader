@@ -1,0 +1,13 @@
+[Unit]
+Description = Start AutTrader.
+After=local-fs.target
+ConditionPathExists=/opt/StartStream/bin
+
+[Service]
+ExecStart=/opt/StartStream/bin/autoexec_ss.sh
+Restart=always
+Type=simple
+
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,13 @@
+[Unit]
+Description = Start AutTrader.
+After=local-fs.target
+ConditionPathExists=/opt/AutoTrader/bin
+
+[Service]
+ExecStart=/opt/AutoTrader/bin/autoexec_at.sh
+Restart=always
+Type=simple
+
+
+[Install]
+WantedBy=multi-user.target
