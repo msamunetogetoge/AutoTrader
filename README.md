@@ -68,7 +68,7 @@ BACKTEST のページで使われるデータを作成する。具体的には�
 アルゴリズムを追加するコマンド。pyファイルの中の辞書に手打ちして使う。
 ### authcheck
 key.py に入力したapikey等が有効か調べるコマンド。 getbalanceをリクエストして、上手く帰ってきたら使えるという判定。
-### getfronsql
+### getfromsql
 stockdata.sql に入っているデータをCandle_1s, Candle_1m, Candle_1hに取り込むコマンド。
 ### startstream
 ticker をapi経由で取得し続けるコマンド。 5秒に一回データを取得する。docker で動かした時は自動でスタートしている。
